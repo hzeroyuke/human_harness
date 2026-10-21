@@ -1,0 +1,55 @@
+name: Trajectory Pages
+
+on:
+  push:
+    branches: [feat/trajectory-explorer]
+    paths:
+      - site/**
+      - scripts/check-humanize-benchmark.mjs
+      - scripts/check-humanize-benchmark.test.mjs
+      - .github/workflows/trajectory-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trajectory-pages
+  cancel-in-progress: false
+
+jobs:
+  package:
+    if: github.ref == 'refs/heads/feat/trajectory-explorer'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Check the publication validator
+        run: node --test scripts/check-humanize-benchmark.test.mjs
+      - name: Validate complete public trajectories
+        run: node scripts/check-humanize-benchmark.mjs site/data/benchmark.json
+      - name: Package static website
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: site
+
+  deploy:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Verify Pages configuration
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+        # Initial enablement is an administrator setting; GITHUB_TOKEN cannot enable it.
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
