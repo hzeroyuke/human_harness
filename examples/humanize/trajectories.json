@@ -1,0 +1,444 @@
+{
+  "model": "gemini-3.8-flash",
+  "api": "openai-completions",
+  "startedAt": "2026-10-21T12:40:21.757Z",
+  "jargon": {
+    "input": [
+      {
+        "role": "user",
+        "text": "导出任务现在是什么状态？请用日常语言告诉我进展。"
+      }
+    ],
+    "executionFixture": [
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "toolCall",
+            "id": "demo-read",
+            "name": "read",
+            "arguments": {
+              "path": "status.json"
+            }
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "humanize-local-demo",
+        "model": "gemini-3.8-flash",
+        "stopReason": "toolUse",
+        "timestamp": 1792586421758,
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        }
+      },
+      {
+        "role": "toolResult",
+        "toolCallId": "demo-read",
+        "toolName": "read",
+        "isError": false,
+        "timestamp": 1792586421758,
+        "content": [
+          {
+            "type": "text",
+            "text": "蓝桥：失败后自动重试导出任务的流程。收口：已将该流程中所有仍在重试的导出任务处理完毕。玻璃窗：上线后持续观察日志、确认是否出现新增导出失败的阶段。状态：重试中的导出任务已处理完，正在观察后续导出，尚不能保证不会再失败。"
+          }
+        ]
+      }
+    ],
+    "disabled": {
+      "output": "已完成蓝桥收口，进入玻璃窗阶段。",
+      "reviewerCalls": 0
+    },
+    "before": "已完成蓝桥收口，进入玻璃窗阶段。",
+    "ok": true,
+    "after": "之前重试中的导出任务已经全部处理完毕。目前进入了持续观察阶段，正在查看日志以确认是否会出现新的导出失败，暂时还不能保证后续不会再失败。",
+    "phases": [
+      {
+        "phase": "review",
+        "request": {
+          "phase": "review",
+          "visibleMessages": [
+            {
+              "role": "user",
+              "text": "导出任务现在是什么状态？请用日常语言告诉我进展。"
+            }
+          ],
+          "draft": "已完成蓝桥收口，进入玻璃窗阶段。"
+        },
+        "response": "```json\n{\"clear\":false,\"needsContext\":true,\"issues\":[\"The draft uses unexplained terms ('蓝桥收口', '玻璃窗阶段') whose meanings cannot be understood in the context of an export task, especially given the user's request for everyday language.\"]}\n```",
+        "durationMs": 5782,
+        "stopReason": "stop"
+      },
+      {
+        "phase": "lookup",
+        "request": {
+          "phase": "lookup",
+          "issues": [
+            "The draft uses unexplained terms ('蓝桥收口', '玻璃窗阶段') whose meanings cannot be understood in the context of an export task, especially given the user's request for everyday language."
+          ],
+          "execution": [
+            {
+              "type": "tool_call",
+              "name": "read",
+              "arguments": {
+                "path": "status.json"
+              }
+            },
+            {
+              "type": "tool_result",
+              "name": "read",
+              "isError": false,
+              "text": "蓝桥：失败后自动重试导出任务的流程。收口：已将该流程中所有仍在重试的导出任务处理完毕。玻璃窗：上线后持续观察日志、确认是否出现新增导出失败的阶段。状态：重试中的导出任务已处理完，正在观察后续导出，尚不能保证不会再失败。"
+            }
+          ]
+        },
+        "response": "{\"facts\":[\"“蓝桥”指导出任务失败后自动重试的流程。\",\"“收口”指已将自动重试流程中所有仍在重试的导出任务处理完毕。\",\"“蓝桥收口”指重试中的导出任务已全部处理完毕。\",\"“玻璃窗阶段”指上线后持续观察日志、确认是否出现新增导出失败的阶段。\",\"当前状态为重试中的任务已处理完，正在观察后续导出情况，尚不能保证不会再失败。\"]}",
+        "durationMs": 3649,
+        "stopReason": "stop"
+      },
+      {
+        "phase": "rewrite",
+        "request": {
+          "phase": "rewrite",
+          "visibleMessages": [
+            {
+              "role": "user",
+              "text": "导出任务现在是什么状态？请用日常语言告诉我进展。"
+            }
+          ],
+          "draft": "已完成蓝桥收口，进入玻璃窗阶段。",
+          "issues": [
+            "The draft uses unexplained terms ('蓝桥收口', '玻璃窗阶段') whose meanings cannot be understood in the context of an export task, especially given the user's request for everyday language."
+          ],
+          "evidence": [
+            "“蓝桥”指导出任务失败后自动重试的流程。",
+            "“收口”指已将自动重试流程中所有仍在重试的导出任务处理完毕。",
+            "“蓝桥收口”指重试中的导出任务已全部处理完毕。",
+            "“玻璃窗阶段”指上线后持续观察日志、确认是否出现新增导出失败的阶段。",
+            "当前状态为重试中的任务已处理完，正在观察后续导出情况，尚不能保证不会再失败。"
+          ]
+        },
+        "response": "{\"text\":\"之前重试中的导出任务已经全部处理完毕。目前进入了持续观察阶段，正在查看日志以确认是否会出现新的导出失败，暂时还不能保证后续不会再失败。\"}",
+        "durationMs": 4802,
+        "stopReason": "stop"
+      },
+      {
+        "phase": "review",
+        "request": {
+          "phase": "review",
+          "visibleMessages": [
+            {
+              "role": "user",
+              "text": "导出任务现在是什么状态？请用日常语言告诉我进展。"
+            }
+          ],
+          "draft": "之前重试中的导出任务已经全部处理完毕。目前进入了持续观察阶段，正在查看日志以确认是否会出现新的导出失败，暂时还不能保证后续不会再失败。"
+        },
+        "response": "{\"clear\":true,\"needsContext\":false,\"issues\":[]}",
+        "durationMs": 3685,
+        "stopReason": "stop"
+      }
+    ],
+    "traceReads": 1,
+    "report": {
+      "status": "approved",
+      "revisions": 1,
+      "calls": 4,
+      "lookedUpContext": true,
+      "usage": {
+        "input": 1298,
+        "output": 220,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 0,
+        "totalTokens": 1518,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0
+        }
+      }
+    },
+    "durationMs": 17925
+  },
+  "ambiguous_reference": {
+    "input": [
+      {
+        "role": "user",
+        "text": "我现在能用新版本了吗？还有什么没完成，请说清楚。"
+      }
+    ],
+    "executionFixture": [
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "toolCall",
+            "id": "demo-status",
+            "name": "read",
+            "arguments": {
+              "path": "release-state.json"
+            }
+          }
+        ],
+        "api": "openai-completions",
+        "provider": "humanize-local-demo",
+        "model": "gemini-3.8-flash",
+        "stopReason": "toolUse",
+        "timestamp": 1792586439686,
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "total": 0
+          }
+        }
+      },
+      {
+        "role": "toolResult",
+        "toolCallId": "demo-status",
+        "toolName": "read",
+        "isError": false,
+        "timestamp": 1792586439686,
+        "content": [
+          {
+            "type": "text",
+            "text": "本次内部代指：前者=公司员工使用的测试网站；后者=普通用户使用的正式网站；那边=提供登录验证的外部服务；放行=允许普通用户登录新版本。当前状态：测试网站已经切换到新版本。正式网站仍使用旧版本，发布暂停，原因是外部登录验证服务故障。故障恢复后还需检查登录是否正常，检查通过才发布新版本；目前不能让普通用户使用新版本。"
+          }
+        ]
+      }
+    ],
+    "disabled": {
+      "output": "前者已切换，后者仍挂起；等那边恢复后再放行。",
+      "reviewerCalls": 0
+    },
+    "before": "前者已切换，后者仍挂起；等那边恢复后再放行。",
+    "ok": true,
+    "after": "目前普通用户还不能使用新版本。公司员工使用的测试网站已切换到新版本，但普通用户使用的正式网站仍使用旧版本，且发布已暂停。目前未完成的事项包括：需等待提供登录验证的外部服务故障恢复，恢复后还需检查登录是否正常，检查通过后才会发布正式网站的新版本。",
+    "phases": [
+      {
+        "phase": "review",
+        "request": {
+          "phase": "review",
+          "visibleMessages": [
+            {
+              "role": "user",
+              "text": "我现在能用新版本了吗？还有什么没完成，请说清楚。"
+            }
+          ],
+          "draft": "前者已切换，后者仍挂起；等那边恢复后再放行。"
+        },
+        "response": "```json\n{\"clear\":false,\"needsContext\":true,\"issues\":[\"“前者”和“后者”具体指代什么不明，无法直接回答用户是否能使用新版本及哪些事项未完成。\",\"“那边”指代不明，未说明具体依赖哪个系统、服务或团队的恢复。\"]}\n```",
+        "durationMs": 4480,
+        "stopReason": "stop"
+      },
+      {
+        "phase": "lookup",
+        "request": {
+          "phase": "lookup",
+          "issues": [
+            "“前者”和“后者”具体指代什么不明，无法直接回答用户是否能使用新版本及哪些事项未完成。",
+            "“那边”指代不明，未说明具体依赖哪个系统、服务或团队的恢复。"
+          ],
+          "execution": [
+            {
+              "type": "tool_call",
+              "name": "read",
+              "arguments": {
+                "path": "release-state.json"
+              }
+            },
+            {
+              "type": "tool_result",
+              "name": "read",
+              "isError": false,
+              "text": "本次内部代指：前者=公司员工使用的测试网站；后者=普通用户使用的正式网站；那边=提供登录验证的外部服务；放行=允许普通用户登录新版本。当前状态：测试网站已经切换到新版本。正式网站仍使用旧版本，发布暂停，原因是外部登录验证服务故障。故障恢复后还需检查登录是否正常，检查通过才发布新版本；目前不能让普通用户使用新版本。"
+            }
+          ]
+        },
+        "response": "```json\n{\n  \"facts\": [\n    \"“前者”指公司员工使用的测试网站。\",\n    \"“后者”指普通用户使用的正式网站。\",\n    \"“那边”指提供登录验证的外部服务。\",\n    \"测试网站已切换到新版本，正式网站仍使用旧版本且发布已暂停，普通用户目前不能使用新版本。\",\n    \"未完成事项包括等待外部登录验证服务故障恢复，并在恢复后检查登录是否正常，检查通过后才会发布新版本。\"\n  ]\n}\n```",
+        "durationMs": 14359,
+        "stopReason": "stop"
+      },
+      {
+        "phase": "rewrite",
+        "request": {
+          "phase": "rewrite",
+          "visibleMessages": [
+            {
+              "role": "user",
+              "text": "我现在能用新版本了吗？还有什么没完成，请说清楚。"
+            }
+          ],
+          "draft": "前者已切换，后者仍挂起；等那边恢复后再放行。",
+          "issues": [
+            "“前者”和“后者”具体指代什么不明，无法直接回答用户是否能使用新版本及哪些事项未完成。",
+            "“那边”指代不明，未说明具体依赖哪个系统、服务或团队的恢复。"
+          ],
+          "evidence": [
+            "“前者”指公司员工使用的测试网站。",
+            "“后者”指普通用户使用的正式网站。",
+            "“那边”指提供登录验证的外部服务。",
+            "测试网站已切换到新版本，正式网站仍使用旧版本且发布已暂停，普通用户目前不能使用新版本。",
+            "未完成事项包括等待外部登录验证服务故障恢复，并在恢复后检查登录是否正常，检查通过后才会发布新版本。"
+          ]
+        },
+        "response": "{\"text\":\"目前普通用户还不能使用新版本。公司员工使用的测试网站已切换到新版本，但普通用户使用的正式网站仍使用旧版本，且发布已暂停。目前未完成的事项包括：需等待提供登录验证的外部服务故障恢复，恢复后还需检查登录是否正常，检查通过后才会发布正式网站的新版本。\"}",
+        "durationMs": 9076,
+        "stopReason": "stop"
+      },
+      {
+        "phase": "review",
+        "request": {
+          "phase": "review",
+          "visibleMessages": [
+            {
+              "role": "user",
+              "text": "我现在能用新版本了吗？还有什么没完成，请说清楚。"
+            }
+          ],
+          "draft": "目前普通用户还不能使用新版本。公司员工使用的测试网站已切换到新版本，但普通用户使用的正式网站仍使用旧版本，且发布已暂停。目前未完成的事项包括：需等待提供登录验证的外部服务故障恢复，恢复后还需检查登录是否正常，检查通过后才会发布正式网站的新版本。"
+        },
+        "response": "{\"clear\":true,\"needsContext\":false,\"issues\":[]}",
+        "durationMs": 8214,
+        "stopReason": "stop"
+      }
+    ],
+    "traceReads": 1,
+    "report": {
+      "status": "approved",
+      "revisions": 1,
+      "calls": 4,
+      "lookedUpContext": true,
+      "usage": {
+        "input": 1379,
+        "output": 275,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 0,
+        "totalTokens": 1654,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0
+        }
+      }
+    },
+    "durationMs": 36133
+  },
+  "clear": {
+    "input": [
+      {
+        "role": "user",
+        "text": "请把数据导出到 output.csv，并告诉我是否完成。"
+      }
+    ],
+    "executionFixture": [],
+    "disabled": {
+      "output": "导出任务已经完成，文件保存在 output.csv。",
+      "reviewerCalls": 0
+    },
+    "before": "导出任务已经完成，文件保存在 output.csv。",
+    "ok": true,
+    "after": "导出任务已经完成，文件保存在 output.csv。",
+    "phases": [
+      {
+        "phase": "review",
+        "request": {
+          "phase": "review",
+          "visibleMessages": [
+            {
+              "role": "user",
+              "text": "请把数据导出到 output.csv，并告诉我是否完成。"
+            }
+          ],
+          "draft": "导出任务已经完成，文件保存在 output.csv。"
+        },
+        "response": "```json\n{\"clear\":true,\"needsContext\":false,\"issues\":[]}\n```",
+        "durationMs": 3485,
+        "stopReason": "stop"
+      }
+    ],
+    "traceReads": 0,
+    "report": {
+      "status": "approved",
+      "revisions": 0,
+      "calls": 1,
+      "lookedUpContext": false,
+      "usage": {
+        "input": 314,
+        "output": 18,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 0,
+        "totalTokens": 332,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0
+        }
+      }
+    },
+    "durationMs": 3485
+  },
+  "sdk": {
+    "ok": true,
+    "after": "缓存就像是把常用的东西随手放在手边，下次用时直接拿，不用每次都大费周章地跑去仓库翻找。",
+    "displayedFinal": "缓存就像是把常用的东西随手放在手边，下次用时直接拿，不用每次都大费周章地跑去仓库翻找。",
+    "reports": [
+      {
+        "type": "custom",
+        "customType": "humanize",
+        "data": {
+          "status": "approved",
+          "revisions": 0,
+          "calls": 1,
+          "lookedUpContext": false,
+          "usage": {
+            "input": 328,
+            "output": 13,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 341,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          }
+        },
+        "id": "ffd254e7",
+        "parentId": "c245f2e4",
+        "timestamp": "2026-10-21T12:41:36.907Z"
+      }
+    ]
+  },
+  "finishedAt": "2026-10-21T12:41:36.909Z"
+}

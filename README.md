@@ -1,206 +1,176 @@
-<p align="center">
-  <a href="https://pi.dev">
-    <img alt="pi logo" src="https://pi.dev/logo-auto.svg" width="128">
-  </a>
-</p>
-<p align="center">
-  <a href="https://discord.com/invite/3cU7Bz4UPx"><img alt="Discord" src="https://img.shields.io/badge/discord-community-5865F2?style=flat-square&logo=discord&logoColor=white" /></a>
-  <a href="https://www.npmjs.com/package/@earendil-works/pi-coding-agent"><img alt="npm" src="https://img.shields.io/npm/v/@earendil-works/pi-coding-agent?style=flat-square" /></a>
-</p>
+# Human Harness：让 Pi 的回复更容易读懂
 
-> New issues and PRs from new contributors are auto-closed by default. Maintainers review auto-closed issues daily. See [CONTRIBUTING.md](CONTRIBUTING.md).
+这个仓库基于 [Pi](https://github.com/earendil-works/pi)，在每条即将展示给用户的模型回复前，增加一个独立的读者 Agent。
 
-# Pi
+读者只看用户输入、此前用户可见的助手文字和本次待发送的回复。如果它读不懂，会提出具体问题；只有需要核实背景时，才由另一次调用查询执行记录，再改写回复。改写后，重新建立一个没有看过执行记录的读者上下文，检查用户现在是否能读懂。
 
-Pi is a minimal, extensible agent harness that you can make your own.
+例如，Agent 在工具执行过程中把“重试失败的导出任务”叫作“蓝桥”，最后却只告诉用户“蓝桥收口了”。用户没有见过这个定义。Humanize 会发现这类缺失，并根据记录把它改成具体、可理解的说明。
 
-Adapt Pi to your workflows, not the other way around. Customize Pi with [extensions](packages/coding-agent/docs/extensions.md), [skills](packages/coding-agent/docs/skills.md), [prompt templates](packages/coding-agent/docs/prompt-templates.md), and [themes](packages/coding-agent/docs/themes.md). Bundle them as [Pi packages](packages/coding-agent/docs/packages.md) and share via npm or git.
+## 快速开始
 
-Pi ships with powerful defaults but skips features like sub-agents and plan mode. Ask Pi to build what you want, or install a package that does it your way.
-
-Use Pi [interactively](packages/coding-agent/docs/usage.md), automate it in [print or JSON mode](packages/coding-agent/docs/cli.md), control it over [RPC](packages/coding-agent/docs/rpc.md), or build apps with the [Pi TypeScript SDK](packages/coding-agent/docs/sdk.md). See [OpenClaw](https://github.com/OpenClaw/OpenClaw) for a real-world integration.
-
-## Getting started
-
-Install the command-line interface:
+需要 Node.js 22.19 或更新版本。
 
 ```bash
-curl -fsSL https://pi.dev/install.sh | sh
+git clone git@github.com:hzeroyuke/human_harness.git
+cd human_harness
+npm ci --ignore-scripts
+npm run hydrate:model-data
+./pi-humanize.sh
 ```
 
-On Windows:
-
-```shell
-powershell -c "irm https://pi.dev/install.ps1 | iex"
-```
-
-The installer pins all dependencies and updates Pi with `pi update`. Alternatively, install directly with npm, which does not pin transitive dependencies:
+`hydrate:model-data` 使用上游命令下载运行所需的模型目录。模型认证沿用 Pi 配置，可在 Pi 内运行 `/login`。默认使用主 Agent 的模型进行审阅，也能单独选择读者模型。
 
 ```bash
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+# 开启：每条有文字的模型回复先经过读者审阅
+PI_HUMANIZE=1 ./pi-humanize.sh
+
+# 关闭：沿用 Pi 原有的流式输出
+PI_HUMANIZE=0 ./pi-humanize.sh
 ```
 
-Pi requires Node.js 22.19 or newer. The macOS, Linux, and Windows installers can install it if needed. Pi does not require dependency lifecycle scripts for a normal npm installation.
+`pi-humanize.sh` 默认开启；原有 `pi-test.sh` 和 SDK 默认关闭。也可以在 `.pi/settings.json` 中设置：
 
-Start Pi in the directory where you want it to work:
+```json
+{
+  "humanize": {
+    "enabled": true,
+    "maxRevisions": 2,
+    "timeoutMs": 90000,
+    "maxContextChars": 48000
+  }
+}
+```
+
+环境变量优先于配置。完整配置、SDK 用法和本机 Copilot 反代配置见 [中文使用说明](HUMANIZE.md)。
+
+## 开启与关闭的轨迹对比
+
+以下对照使用相同的用户输入、执行记录和待发送文本。**主 Agent 草稿与执行记录是合成测试数据，其中描述的工作没有实际执行；审阅、查证、改写和复审调用了真实模型。** 这样可以比较功能本身的影响，避免两次主模型随机生成不同答案。
+
+关闭时原文直接展示，辅助调用为零。开启时运行本仓库的实际审阅引擎。完整的每步请求、模型原始返回与用量见 [轨迹记录](examples/humanize/trajectories.md) 和 [JSON 数据](examples/humanize/trajectories.json)。这些例子用于检查流程，不代表总体效果评测。
+
+本次实测模型：`gemini-3.8-flash`，通过 Copilot 本地反代调用；接口为 `openai-completions`。
+
+### 轨迹一：用户从未见过的内部术语
+
+**用户输入**
+
+> 导出任务现在是什么状态？请用日常语言告诉我进展。
+
+**工具执行记录中的背景（首次盲审看不到）**
+
+> 蓝桥：失败后自动重试导出任务的流程。收口：已将该流程中所有仍在重试的导出任务处理完毕。玻璃窗：上线后持续观察日志、确认是否出现新增导出失败的阶段。状态：重试中的导出任务已处理完，正在观察后续导出，尚不能保证不会再失败。
+
+**关闭时看到**
+
+> 已完成蓝桥收口，进入玻璃窗阶段。
+
+**开启时看到**
+
+> 之前重试中的导出任务已经全部处理完毕。目前进入了持续观察阶段，正在查看日志以确认是否会出现新的导出失败，暂时还不能保证后续不会再失败。
+
+实际轨迹：盲审 → 查证执行记录 → 改写 → 全新盲审通过。
+
+辅助调用 4 次，改写 1 次，读取执行记录 1 次。
+
+### 轨迹二：前者、后者、那边分别是什么
+
+**用户输入**
+
+> 我现在能用新版本了吗？还有什么没完成，请说清楚。
+
+**工具执行记录中的背景（首次盲审看不到）**
+
+> 本次内部代指：前者=公司员工使用的测试网站；后者=普通用户使用的正式网站；那边=提供登录验证的外部服务；放行=允许普通用户登录新版本。当前状态：测试网站已经切换到新版本。正式网站仍使用旧版本，发布暂停，原因是外部登录验证服务故障。故障恢复后还需检查登录是否正常，检查通过才发布新版本；目前不能让普通用户使用新版本。
+
+**关闭时看到**
+
+> 前者已切换，后者仍挂起；等那边恢复后再放行。
+
+**开启时看到**
+
+> 目前普通用户还不能使用新版本。公司员工使用的测试网站已切换到新版本，但普通用户使用的正式网站仍使用旧版本，且发布已暂停。目前未完成的事项包括：需等待提供登录验证的外部服务故障恢复，恢复后还需检查登录是否正常，检查通过后才会发布正式网站的新版本。
+
+实际轨迹：盲审 → 查证执行记录 → 改写 → 全新盲审通过。
+
+辅助调用 4 次，改写 1 次，读取执行记录 1 次。
+
+### 轨迹三：本来清楚的回复保持原样
+
+**用户输入**
+
+> 请把数据导出到 output.csv，并告诉我是否完成。
+
+这一组没有提供执行记录。
+
+**关闭时看到**
+
+> 导出任务已经完成，文件保存在 output.csv。
+
+**开启时看到**
+
+> 导出任务已经完成，文件保存在 output.csv。
+
+实际轨迹：盲审通过。
+
+辅助调用 1 次，改写 0 次，读取执行记录 0 次。
+
+### 在本机重跑
+
+本机 Copilot 反代提供 `http://127.0.0.1:4142/v1` 时：
 
 ```bash
-cd /path/to/project
-pi
+node --import ./packages/coding-agent/src/experimental/source-resolver.ts \
+  scripts/humanize-demo.ts
 ```
 
-For a built-in AI provider, run `/login` inside Pi to connect a subscription or API key. Then give Pi a task.
+脚本会生成新的三组对照轨迹，并执行一次实际 SDK 对话。结果写入 `.artifacts/humanize/`；需要已有可用的模型代理。详细模型与接口参数见脚本顶部。
 
-See the [documentation](https://pi.dev/docs/latest) for full setup and usage instructions, or [visit pi.dev](https://pi.dev) for demos.
+## 它怎样接入 Pi
 
-## Run with Nix
+```mermaid
+flowchart TD
+    A[主 Agent 生成待发送回复] --> B[暂存回复]
+    B --> C[独立读者：只看可见对话]
+    C -->|读得懂| H[显示并保存通过审阅的回复]
+    C -->|读不懂| D{是否缺少背景事实}
+    D -->|是| E[单独查询工具执行记录]
+    D -->|否| F[根据问题改写]
+    E --> F
+    F --> G[创建新的盲审上下文]
+    G --> C
+```
+
+- 最终回复与工具调用前的说明文字都经过同一入口，覆盖 CLI、SDK、JSON 和 RPC。
+- 未通过的文字不会先流到界面。审阅通过后，界面与保存的会话使用同一个版本。
+- 查询与改写调用没有工具执行权限。每轮盲审都不携带之前查到的执行记录。
+- 工具名称、参数、调用 ID 和思考块保持原样；纯工具调用直接通过。
+- 默认最多改写两次，总审阅时间为 90 秒。无法通过时返回错误，不放行草稿或执行其中暂存的工具调用。
+
+核心实现位于 [审阅引擎](packages/coding-agent/src/core/humanize.ts)、[输出缓冲](packages/coding-agent/src/core/humanize-stream.ts) 和 [SDK 接入](packages/coding-agent/src/core/sdk.ts)。
+
+## 验证与边界
+
+本次验证结果：
+
+- 新增审阅、流式缓冲与 SDK 集成测试：55 项通过。
+- 配置 schema、SDK 流选项与会话管理回归测试：29 项通过。
+- 三组真实模型对照与一次实际 SDK 对话通过；启动脚本 `--help` 和浏览器依赖检查通过。
+- `npm run check` 的格式、依赖声明、导入路径、入口体积与安装锁检查通过。完整类型检查仍被三项上游问题阻挡：AI 测试引用的模型 ID 与类型定义不一致，以及本机依赖镜像缺少 `@cloudflare/vitest-plugin`、`fake-indexeddb` 对应的测试依赖。仅在临时检查配置中排除这三个文件后，其余源码、测试与演示脚本的类型检查通过；仓库的依赖锁与检查配置没有改动。
 
 ```bash
-nix run github:earendil-works/pi/stable
+cd packages/coding-agent
+node ../../node_modules/vitest/dist/cli.js --run \
+  test/humanize.test.ts test/humanize-stream.test.ts \
+  test/suite/agent-session-humanize.test.ts
 ```
 
-`stable` points at the latest release. Install it with `nix profile add github:earendil-works/pi/stable` and update with `nix profile upgrade pi`. Use a release tag such as `github:earendil-works/pi/v1.0.0` to pin a version, or `github:earendil-works/pi` for unreleased changes on `main`. Nix builds Pi from source.
+开启后，首字等待时间会增加，每条有文字的回复至少增加一次模型请求。审阅检查文字的可理解性，不保证事实一定正确；图片、扩展自定义 UI 与扩展事后替换的文字不在当前覆盖范围内。长对话按字符预算截取，不读取私有思考链。
 
-Supports ARM64 and x86-64 on Linux and macOS. Use `nix build .` or `nix run .` to build or run your checkout.
+改写会检查代码、链接、路径和数字是否保留。对于无法安全改写的 provider 签名或混合消息阶段，会停止本次回复。各模型的兼容范围和其他限制详见 [中文使用说明](HUMANIZE.md#行为与限制)。
 
-Nix builds are offline, so the bundled model data comes from a pi.dev model catalog revision pinned in `nix/model-catalog.json`. At runtime, Pi still overlays newer catalog data from pi.dev as usual. The Nix workflow replaces the pin on `main` when it no longer matches the checkout, for example after a provider is added or gains a new model type. To refresh it by hand:
+## 上游与许可
 
-```bash
-npm run update:model-catalog-pin
-```
+基于 [earendil-works/pi](https://github.com/earendil-works/pi) 开发，保留上游 Git 历史。Pi 原有扩展、技能、工具和模型配置仍可使用；原始文档见 [Pi 编码助手说明](packages/coding-agent/README.md)。
 
-## Packages
-
-This monorepo contains the Pi CLI and its supporting libraries.
-
-| Package | Description |
-|---------|-------------|
-| **[@earendil-works/chord](packages/chord)** | Typed host runtime for hot-reloadable plugins, contracts, replicated state, and RPC over JSON links |
-| **[@earendil-works/pi-telemetry](packages/telemetry)** | Vendor-neutral telemetry contracts, reference adapter, conformance tests, and typed schemas |
-| **[@earendil-works/pi-ai](packages/ai)** | Unified multi-provider LLM API (OpenAI, Anthropic, Google, etc.) |
-| **[@earendil-works/pi-durable](packages/durable)** | Durable conversation, task, and document runtime |
-| **[@earendil-works/pi-agent-core](packages/agent)** | Agent runtime with tool calling and state management |
-| **[@earendil-works/pi-coding-agent](packages/coding-agent)** | Interactive coding agent CLI |
-| **[@earendil-works/pi-tui](packages/tui)** | Terminal UI library with differential rendering |
-
-For Slack/chat automation and workflows see [earendil-works/pi-chat](https://github.com/earendil-works/pi-chat).
-
-## Permissions & Containerization
-
-Pi does not include a built-in permission system for restricting filesystem, process, network, or credential access. By default, it runs with the permissions of the user and process that launched it.
-
-If you need stronger boundaries, containerize or sandbox Pi. See [packages/coding-agent/docs/containerization.md](packages/coding-agent/docs/containerization.md) for three patterns:
-
-- **Gondolin extension**: keep `pi` and provider auth on the host while routing built-in tools and `!` commands into a local Linux micro-VM.
-- **Plain Docker**: run the whole `pi` process in a local container for simple isolation.
-- **OpenShell**: run the whole `pi` process in a policy-controlled sandbox.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and [AGENTS.md](AGENTS.md) for project-specific rules (for both humans and agents).  Longer term plans for Pi can also be found in [RFCs](https://rfc.earendil.com/keyword/pi/).
-
-## Development
-
-```bash
-npm install --ignore-scripts  # Install all dependencies without running lifecycle scripts
-npm run build         # Refresh model data, then build all packages
-npm run build:offline # Rebuild using existing model data without network access
-npm run check         # Lint, format, and type check
-./test.sh            # Run tests (skips LLM-dependent tests without API keys)
-./pi-test.sh         # Run pi from sources (can be run from any directory)
-```
-
-### Using local packages outside the monorepo
-
-Build every public package into one coherent local artifact set:
-
-```bash
-npm run pack:packages -- --out .artifacts/pi-packages
-```
-
-This refreshes model data before building `pi-ai`. To avoid network access when
-model data is already hydrated, pass `--offline-model-data`.
-
-Then configure an external project to consume one package and resolve all of
-its Pi dependencies from the same artifact set. npm is the default:
-
-```bash
-node scripts/use-local-packages.mjs \
-  --manifest .artifacts/pi-packages/manifest.json \
-  --consumer ../my-project \
-  --package @earendil-works/pi-durable \
-  --package @earendil-works/pi-agent-core
-cd ../my-project
-npm install --ignore-scripts
-```
-
-For a pnpm project, point `--consumer` at the workspace root:
-
-```bash
-node scripts/use-local-packages.mjs \
-  --manifest .artifacts/pi-packages/manifest.json \
-  --consumer ../my-project \
-  --package @earendil-works/pi-agent-core \
-  --package-manager pnpm
-cd ../my-project
-pnpm install --ignore-scripts
-```
-
-Repeat `--package` for each direct dependency. The command updates the
-consumer's `package.json` with content-addressed local `file:` references. It
-writes transitive overrides to `package.json` for npm or `pnpm-workspace.yaml`
-for pnpm. Keep the artifact directory available while installing or updating
-the consumer. Re-run both commands after changing Pi source.
-
-## Building standalone binaries from release source
-
-GitHub releases include a versioned source archive covered by the release's `SHA256SUMS` file. Extract it and run the same build script used for the official standalone binaries:
-
-```bash
-VERSION="<release-version>"
-tar -xzf "pi-${VERSION}-source.tar.gz"
-cd "pi-${VERSION}"
-./scripts/build-binaries.sh --offline-model-data --platform linux-x64 --out "$PWD/out"
-```
-
-The archive includes release model data and native prebuilds. `--offline-model-data` uses that model data without refreshing provider catalogs. The script installs dependencies and builds the executable with its runtime assets; pass `--skip-install` if dependencies are already provided.
-
-## Supply-chain hardening
-
-We treat npm dependency changes as reviewed code changes.
-
-- Direct external dependencies are pinned to exact versions. Internal workspace packages remain version-ranged.
-- `.npmrc` sets `save-exact=true` and `min-release-age=2` to avoid same-day dependency releases during npm resolution.
-- `package-lock.json` is the dependency ground truth. Pre-commit blocks accidental lockfile commits unless `PI_ALLOW_LOCKFILE_CHANGE=1` is set.
-- `npm run check` verifies pinned direct deps, native TypeScript import compatibility, and the generated coding-agent install lock.
-- The pi.dev installer installs from `packages/coding-agent/install-lock/`, generated from the root lockfile, to pin transitive deps. The npm package does not pin transitive deps.
-- Local release smoke tests and npm publication use the same tarball packer; npm publishes the validated tarballs rather than repacking workspace directories.
-- Local release installs, documented npm installs, and `pi update --self` use `--ignore-scripts` where supported.
-- CI installs with `npm ci --ignore-scripts`, and a scheduled GitHub workflow runs `npm audit --omit=dev` plus `npm audit signatures --omit=dev`.
-- Install lock generation has an explicit allowlist for dependency lifecycle scripts; new lifecycle-script deps fail checks until reviewed.
-
-## Share your OSS coding agent sessions
-
-If you use Pi or other coding agents for open source work, please share your sessions.
-
-Public OSS session data helps improve coding agents with real-world tasks, tool use, failures, and fixes instead of toy benchmarks.
-
-For the full explanation, see [this post on X](https://x.com/badlogicgames/status/2037811643774652911).
-
-To publish sessions, use [`badlogic/pi-share-hf`](https://github.com/badlogic/pi-share-hf). Read its README.md for setup instructions. All you need is a Hugging Face account, the Hugging Face CLI, and `pi-share-hf`.
-
-You can also watch [this video](https://x.com/badlogicgames/status/2041151967695634619), where I show how I publish my `pi-mono` sessions.
-
-I regularly publish my own `pi-mono` work sessions here:
-
-- [badlogicgames/pi-mono on Hugging Face](https://huggingface.co/datasets/badlogicgames/pi-mono)
-
-## License
-
-MIT
-
-<p align="center">
-  <a href="https://pi.dev">pi.dev</a> domain graciously donated by
-  <br /><br />
-  <a href="https://exe.dev"><img src="packages/coding-agent/docs/images/exy.png" alt="Exy mascot" width="48" /><br />exe.dev</a>
-</p>
+许可证：[MIT](LICENSE)。

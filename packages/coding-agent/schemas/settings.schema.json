@@ -97,6 +97,42 @@
     "theme": {
       "type": "string"
     },
+    "humanize": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Review assistant text before displaying it."
+        },
+        "maxRevisions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "default": 2
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300000,
+          "default": 90000
+        },
+        "maxContextChars": {
+          "type": "integer",
+          "minimum": 256,
+          "maximum": 200000,
+          "default": 48000
+        },
+        "provider": {
+          "type": "string",
+          "description": "Reader provider; defaults to the main provider."
+        },
+        "model": {
+          "type": "string",
+          "description": "Reader model; defaults to the main model."
+        }
+      }
+    },
     "compaction": {
       "type": "object",
       "properties": {

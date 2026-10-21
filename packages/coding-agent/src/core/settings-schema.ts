@@ -15,6 +15,15 @@ const CompactionModelOverrideSchema = Type.Object({
 	keepRecentTokens: Type.Optional(nonNegativeSafeInteger()),
 });
 
+const HumanizeSettingsSchema = Type.Object({
+	enabled: Type.Optional(Type.Boolean({ default: false, description: "Review assistant text before displaying it." })),
+	maxRevisions: Type.Optional(Type.Integer({ minimum: 0, maximum: 5, default: 2 })),
+	timeoutMs: Type.Optional(Type.Integer({ minimum: 1, maximum: 300000, default: 90000 })),
+	maxContextChars: Type.Optional(Type.Integer({ minimum: 256, maximum: 200000, default: 48000 })),
+	provider: Type.Optional(Type.String({ description: "Reader provider; defaults to the main provider." })),
+	model: Type.Optional(Type.String({ description: "Reader model; defaults to the main model." })),
+});
+
 const CompactionSettingsSchema = Type.Object({
 	enabled: Type.Optional(Type.Boolean({ default: SETTINGS_DEFAULTS.compaction.enabled })),
 	reserveTokens: Type.Optional(nonNegativeSafeInteger({ default: SETTINGS_DEFAULTS.compaction.reserveTokens })),
@@ -239,6 +248,7 @@ export const SettingsSchema = Type.Object(
 			}),
 		),
 		theme: Type.Optional(Type.String()),
+		humanize: Type.Optional(HumanizeSettingsSchema),
 		compaction: Type.Optional(CompactionSettingsSchema),
 		branchSummary: Type.Optional(BranchSummarySettingsSchema),
 		retry: Type.Optional(RetrySettingsSchema),

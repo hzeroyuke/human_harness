@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { Agent, type AgentMessage, setDefaultStreamFn, type ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { ModelsSimpleStreamOptions } from "@earendil-works/pi-ai";
@@ -10,6 +11,8 @@ import { CacheWarmer } from "./cache-warmer.ts";
 import { getClientIdentity } from "./client-identity.ts";
 import { DEFAULT_THINKING_LEVEL } from "./defaults.ts";
 import type { ExtensionRunner, LoadExtensionsResult, SessionStartEvent, ToolDefinition } from "./extensions/index.ts";
+import { HumanizeError, type HumanizeVisibleMessage, humanizeMessage } from "./humanize.ts";
+import { humanizeStream } from "./humanize-stream.ts";
 import { createToolNameMatcher } from "./mcp-servers.ts";
 import { convertToLlm } from "./messages.ts";
 import { findInitialModel } from "./model-resolver.ts";
@@ -410,16 +413,101 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		},
 		convertToLlm: convertToLlmWithBlockImages,
 		streamFn: async (model, context, options) => {
+			const requestSessionId = sessionManager.getSessionId();
 			const requestOptions = buildRequestOptions(options);
 			// Compaction and summaries use their own routing ids; only session requests
 			// replace the cache entry, so warming restarts from them. Keep warming while
 			// the current transcript still extends the request's prefix. Agent state may
 			// shallow-copy the messages array or refresh the model object without changing
 			// the provider request, so top-level object identity is not a valid cache key.
-			if (options?.sessionId === sessionManager.getSessionId()) {
+			if (options?.sessionId === requestSessionId) {
 				cacheWarmer.start({ model, context, options: requestOptions }, cacheContextIsCurrent(model));
 			}
-			return modelRuntime.streamSimple(model, context, requestOptions);
+			const humanize = settingsManager.getSettings().humanize;
+			const enabled =
+				process.env.PI_HUMANIZE === "1" || (process.env.PI_HUMANIZE !== "0" && humanize?.enabled === true);
+			const reviewOutput = enabled && options?.sessionId === requestSessionId;
+			// Raw provider event extensions could otherwise display the held draft before review.
+			if (reviewOutput) requestOptions.onProviderStreamEvent = undefined;
+			const source = modelRuntime.streamSimple(model, context, requestOptions);
+			// Internal compaction and branch-summary requests share this function, but are not displayed replies.
+			if (!reviewOutput) return source;
+			// A cancelled provider may settle after the caller has replaced the active session.
+			const isCurrentSession = () => sessionManager.getSessionId() === requestSessionId;
+			return humanizeStream(
+				source,
+				async (message) => {
+					const readerModel =
+						humanize?.model || humanize?.provider
+							? modelRuntime.getModel(humanize.provider ?? model.provider, humanize.model ?? model.id)
+							: model;
+					if (!readerModel) throw new Error("Humanize reader model is not configured.");
+					const visibleMessages: HumanizeVisibleMessage[] = [];
+					// Read the visible branch, not model context: compacted summaries and hidden extension prompts
+					// must not teach the reader definitions the human was never shown.
+					for (const entry of sessionManager.getBranch()) {
+						if (entry.type !== "message") continue;
+						const prior = entry.message;
+						if (prior.role !== "user" && prior.role !== "assistant") continue;
+						const text =
+							typeof prior.content === "string"
+								? prior.content
+								: prior.content
+										.filter((block) => block.type === "text")
+										.map((block) => block.text)
+										.join("\n");
+						if (text.trim()) visibleMessages.push({ role: prior.role, text });
+					}
+					try {
+						const result = await humanizeMessage({
+							message,
+							visibleMessages,
+							settings: humanize,
+							signal: options?.signal,
+							getExecutionMessages: () =>
+								sessionManager
+									.getBranch()
+									.flatMap((entry) => (entry.type === "message" ? [entry.message] : [])),
+							complete: async (systemPrompt, payload, signal) => {
+								// Never reuse the main request's payload hooks, tools, or provider conversation cache.
+								const review = modelRuntime.streamSimple(
+									readerModel,
+									{
+										messages: [
+											{ role: "system", content: systemPrompt, timestamp: Date.now() },
+											{ role: "user", content: JSON.stringify(payload), timestamp: Date.now() },
+										],
+									},
+									buildRequestOptions({
+										signal,
+										sessionId: `${requestSessionId}:humanize:${randomUUID()}`,
+										maxTokens: Math.min(8192, readerModel.maxTokens),
+										maxRetries: 0,
+										transport: "sse",
+										cacheRetention: "none",
+									}),
+								);
+								for await (const _event of review) {
+									/* Drain internal events without exposing review text. */
+								}
+								const response = await review.result();
+								if (isCurrentSession()) {
+									sessionManager.appendUsage("humanize", response.provider, response.model, response.usage);
+								}
+								return response;
+							},
+						});
+						if (isCurrentSession()) sessionManager.appendCustomEntry("humanize", result.report);
+						return result.message;
+					} catch (error) {
+						if (error instanceof HumanizeError && isCurrentSession()) {
+							sessionManager.appendCustomEntry("humanize", error.report);
+						}
+						throw error;
+					}
+				},
+				options?.signal,
+			);
 		},
 		onPayload: transformProviderPayload,
 		onResponse: handleProviderResponse,

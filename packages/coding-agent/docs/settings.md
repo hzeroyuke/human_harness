@@ -24,6 +24,19 @@ Cache warming runs only when the model declares a cache lifetime and Pi estimate
 
 See [Choose a Model](models.md) for model selection and thinking controls.
 
+## Humanize output review
+
+Humanize reviews assistant text before it reaches session listeners or the transcript. A fresh reader sees only visible user/assistant text, requests execution evidence only when needed, and checks each revision independently. See [the Humanize guide](../../../HUMANIZE.md) for behavior and limitations.
+
+| Setting | Type | Default | Description |
+|---|---|---|---|
+| `humanize.enabled` | boolean | `false` | Review assistant messages before display. `PI_HUMANIZE=1` enables and `PI_HUMANIZE=0` disables it for one process. |
+| `humanize.maxRevisions` | integer | `2` | Maximum rewrites, from 0 to 5. |
+| `humanize.timeoutMs` | integer | `90000` | Total review deadline per message, from 1 to 300000 milliseconds. |
+| `humanize.maxContextChars` | integer | `48000` | Text budget per review stage, from 256 to 200000 characters. |
+| `humanize.provider` | string | Current provider | Provider for independent reader, lookup, and editor calls. |
+| `humanize.model` | string | Current model | Model ID for independent reader, lookup, and editor calls. |
+
 ## Interaction
 
 | Setting | Type | Default | Description |

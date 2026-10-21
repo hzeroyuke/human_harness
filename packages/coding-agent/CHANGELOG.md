@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added optional Humanize output review: a fresh reader checks visible dialogue, requests execution evidence only when needed, and approves revised text before it reaches the UI or transcript.
+
 - Added a Models Configuration reference generated from the `models.json` schema, listing all provider, model, model override, and compatibility fields ([#10790](https://github.com/earendil-works/pi/issues/10790))
 
 ### Changed
