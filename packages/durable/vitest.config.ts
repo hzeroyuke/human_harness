@@ -3,6 +3,7 @@ import { configDefaults, defineConfig } from "vitest/config";
 
 const durableSrcIndex = fileURLToPath(new URL("./src/index.ts", import.meta.url));
 const durableSrcTesting = fileURLToPath(new URL("./src/testing/index.ts", import.meta.url));
+const telemetrySrcIndex = fileURLToPath(new URL("../telemetry/src/index.ts", import.meta.url));
 
 export default defineConfig({
 	test: {
@@ -14,6 +15,7 @@ export default defineConfig({
 	resolve: {
 		conditions: ["source"],
 		alias: [
+			{ find: /^@earendil-works\/pi-telemetry$/, replacement: telemetrySrcIndex },
 			{ find: /^@earendil-works\/pi-durable$/, replacement: durableSrcIndex },
 			{ find: /^@earendil-works\/pi-durable\/testing$/, replacement: durableSrcTesting },
 		],
