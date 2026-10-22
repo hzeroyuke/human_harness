@@ -1,8 +1,8 @@
 # 可视化轨迹与 GitHub Pages
 
-可视化分支为 `feat/trajectory-explorer`。网页文件位于 `site/`，使用相对路径读取 `site/data/benchmark.json`，不依赖服务器、打包工具或外部字体。
+可视化分支为 `feat/trajectory-explorer`。网页文件位于 `site/`。首页读取真实任务的 `site/data/full-task.json`，历史页 `archive.html` 读取旧批次的 `site/data/benchmark.json`；两者都使用相对路径，不依赖服务器、打包工具或外部字体。
 
-页面比较的是同一条原始回复：关闭时直接显示原文，开启时显示经过 Humanize 审阅的版本。失败时不会把未通过的草稿冒充为改写结果。
+首页逐条比较同一次实际 Pi 会话中的原始回复与 Humanize 最终放行的回复，按消息 ID 一一对应。不能用两个独立运行的不同回答推断改写效果。失败时最终稿为空，不会把未通过的候选文字冒充为已发送内容。表达检查与独立业务验收分别展示。
 
 ## 本地查看
 
@@ -15,7 +15,17 @@ python3 -m http.server 4173 --directory site
 
 访问 [本地页面](http://localhost:4173)。通过 HTTP 打开页面，浏览器才能读取 JSON；直接双击 HTML 文件可能受到浏览器本地文件限制。
 
-## 测试数据说明
+## 真实完整任务
+
+任务由两轮连续用户需求组成，使用多文件 Node.js 项目和固定业务数据。每个模型从相同的种子文件开始，在同一个会话中完成两轮工作；Humanize 在 SDK 的实际发送入口开启，主模型的每条文字都先审阅，再决定是否释放。没有人为预设原始回复、术语或工具执行结果。
+
+工具只提供项目内读写、运行测试、生成报表和调用外部验收。原始输入与业务说明只读。Node 子进程使用权限限制，项目代码不能访问网络、运行其他进程或读写项目外文件；外部验收位于项目副本之外。验收会使用独立边界样例，不仅检查模型自己写的测试。
+
+每条原稿在模型响应完成时记录；最终稿来自 SDK 实际发出的 `message_end`。盲审只收到可见对话和当前草稿；查证才可读真实工具记录；查证结果不会进入下一轮盲审。公开记录不包含私有思考、认证值或本机绝对路径。
+
+完整脚本、任务规则、限制和运行命令见 [完整任务说明](../examples/humanize/full-task/README.md)。本批是有限样本的行为观察，不是模型排名或总体可读性评分。即使所有语句都原样通过，也保留这个结果；不为制造改善而强行改写。
+
+## 历史合成背景数据说明
 
 数据分为两种：
 
@@ -46,13 +56,16 @@ node --import ./packages/coding-agent/src/experimental/source-resolver.ts \
 ## 发布前检查
 
 ```bash
-node --test scripts/check-humanize-benchmark.test.mjs
+node --test scripts/check-humanize-benchmark.test.mjs scripts/check-humanize-full-task.test.mjs
 node scripts/check-humanize-benchmark.mjs site/data/benchmark.json
+node scripts/check-humanize-full-task.mjs site/data/full-task.json
+node --import ./packages/coding-agent/src/experimental/source-resolver.ts \
+  --test scripts/replay-humanize-message.test.mjs
 ```
 
 检查包括模型与任务组合覆盖、重复记录、固定草稿一致性、原始响应与解析结果一致性、盲审输入隔离、最终批准与展示文本一致性。失败和模型不可用算已尝试的组合，不算批准。检查不评价答案的事实正确性。
 
-采集中可加 `--allow-partial` 检查已有记录；`state: "running"` 的记录单独计为待完成，不计入成功或失败。公开发布不允许这个参数，必须有全部预期组合、全部记录结束，并把 `methodology.complete` 标记为 `true`。
+采集中可加 `--allow-partial` 检查已有记录；正在运行的记录不计入成功或失败。公开发布不允许这个参数：历史数据的 `methodology.complete`、真实任务数据的 `complete` 必须为 `true`，声明的模型尝试必须全部结束。提前停止会明确保留，后续未开始的轮次不能算已完成。
 
 ## 首次启用 Pages
 

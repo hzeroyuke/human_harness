@@ -7,6 +7,12 @@ on:
       - site/**
       - scripts/check-humanize-benchmark.mjs
       - scripts/check-humanize-benchmark.test.mjs
+      - scripts/check-humanize-full-task.mjs
+      - scripts/check-humanize-full-task.test.mjs
+      - scripts/replay-humanize-message.ts
+      - scripts/replay-humanize-message.test.mjs
+      - packages/coding-agent/src/core/humanize.ts
+      - packages/coding-agent/src/core/usage-totals.ts
       - .github/workflows/trajectory-pages.yml
   workflow_dispatch:
 
@@ -29,9 +35,13 @@ jobs:
         with:
           node-version: 22
       - name: Check the publication validator
-        run: node --test scripts/check-humanize-benchmark.test.mjs
+        run: node --test scripts/check-humanize-benchmark.test.mjs scripts/check-humanize-full-task.test.mjs
       - name: Validate complete public trajectories
         run: node scripts/check-humanize-benchmark.mjs site/data/benchmark.json
+      - name: Validate full task message pairing
+        run: node scripts/check-humanize-full-task.mjs site/data/full-task.json
+      - name: Replay saved protection failure without model calls
+        run: node --import ./packages/coding-agent/src/experimental/source-resolver.ts --test scripts/replay-humanize-message.test.mjs
       - name: Package static website
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:

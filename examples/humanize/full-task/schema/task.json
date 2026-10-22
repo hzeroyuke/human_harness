@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "id": "shop-daily-reconciliation",
+  "title": "修复网店日结对账，并处理财务补单",
+  "audience": "负责网店运营、不阅读代码的业务人员",
+  "description": "在真实可运行的小项目中读代码、复现错误、修复金额和日期处理、补测试、生成对账文件；第二轮处理迟到数据、冲突记录和手续费。",
+  "date": "2026-10-20",
+  "timezone": "Asia/Shanghai",
+  "seedDirectory": "seed",
+  "acceptance": {
+    "command": "node examples/humanize/full-task/verify.mjs <workspace> <1|2>",
+    "outsideWritableWorkspace": true,
+    "result": "stdout JSON；passed 表示业务验收，不表示表达审阅通过；checks 含每项 expected/actual。退出码 0 为全部通过，1 为业务失败，2 为调用参数错误。",
+    "coverage": [
+      "北京时间边界",
+      "幂等去重",
+      "成功状态过滤",
+      "金额精度与非法金额隔离",
+      "退款不误记成欠款",
+      "孤儿通知",
+      "部分付款和多付款",
+      "稳定排序和 CSV",
+      "项目回归测试",
+      "交付文件",
+      "迟到事件",
+      "冲突 ID 的所有版本隔离",
+      "逐笔手续费及半分进位",
+      "第一轮无手续费兼容"
+    ]
+  },
+  "rounds": [
+    {
+      "id": "1",
+      "title": "修复旧脚本，交付首份日结",
+      "prompt": "我负责网店运营，不会看代码。这个日结对账脚本算出来的数字不对，请你检查项目里的说明、代码和数据，把它修好。我要看北京时间 2026-10-20 创建的订单，截至当天 23:59:59.999 实际发生的成功支付和退款。重复通知只能算一次，失败或等待中的通知不算，找不到订单和金额不合法的通知要单列人工核查，不能悄悄算进总额。未收齐款和已经退款是两回事，请分别列出来。金额要精确到分，不要出现小数误差。先复现问题，再修改代码、补回归测试并运行，用 data/orders.json 和 data/events.json 生成 reports/2026-10-20.json、reports/2026-10-20.csv 和 reports/summary.md。最终用中文告诉我这一天收款、退款、净收款分别是多少，哪些订单还要催款或处理多付款，哪些记录需要人工核查，以及你实际做了哪些检查。不要只给我一份开发计划。",
+      "acceptance": [
+        "北京时间边界",
+        "幂等去重",
+        "成功状态过滤",
+        "金额精度与非法金额隔离",
+        "退款不误记成欠款",
+        "孤儿通知",
+        "部分付款和多付款",
+        "稳定排序和 CSV",
+        "项目回归测试",
+        "交付文件"
+      ],
+      "reportCommand": [
+        "node",
+        "src/cli.mjs",
+        "--orders",
+        "data/orders.json",
+        "--events",
+        "data/events.json",
+        "--date",
+        "2026-10-20",
+        "--out",
+        "reports"
+      ],
+      "eventsFile": "data/events.json",
+      "testPaths": [
+        "test"
+      ]
+    },
+    {
+      "id": "2",
+      "title": "补单重算，加入冲突隔离与手续费",
+      "prompt": "财务补来一份 data/events-update.json，请继续在刚才修好的项目上处理，仍然是北京时间 2026-10-20 的日结。补单按 occurredAt 的实际发生时间归属日期，不按收到文件的时间。新要求有两项：第一，同一个 eventId 如果订单、金额、类型、状态或发生时间有冲突，把这个 ID 的所有版本都隔离并列出一次人工核查，不能默认第一条对；完全相同的重复通知仍只算一次，receivedAt 不参与冲突比较。第二，渠道对每笔有效成功支付收取 0.6% 手续费，每一笔分别四舍五入到分再汇总；退款不退手续费。请给 CLI 增加 --fee-bps 60（不传时仍为零），在 JSON 和 CSV 中补手续费与预计到账净额字段，重新生成同名 reports 文件，保留第一轮回归测试并补这次的测试。告诉我更新后的收款、退款、手续费、预计到账金额，和上一轮相比变了多少、为什么变；人工核查项不要遗漏。你不需要联系财务或改动真实业务系统。 具体字段和冲突计数约定见 docs/channel-update.md。",
+      "acceptance": [
+        "北京时间边界",
+        "幂等去重",
+        "成功状态过滤",
+        "金额精度与非法金额隔离",
+        "退款不误记成欠款",
+        "孤儿通知",
+        "部分付款和多付款",
+        "稳定排序和 CSV",
+        "项目回归测试",
+        "交付文件",
+        "迟到事件",
+        "冲突 ID 的所有版本隔离",
+        "逐笔手续费及半分进位",
+        "第一轮无手续费兼容"
+      ],
+      "reportCommand": [
+        "node",
+        "src/cli.mjs",
+        "--orders",
+        "data/orders.json",
+        "--events",
+        "data/events-update.json",
+        "--date",
+        "2026-10-20",
+        "--out",
+        "reports",
+        "--fee-bps",
+        "60"
+      ],
+      "eventsFile": "data/events-update.json",
+      "testPaths": [
+        "test"
+      ]
+    }
+  ]
+}

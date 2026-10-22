@@ -3,111 +3,76 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="逐条比较 Pi Humanize 开启与关闭时的回复，查看跨模型、跨任务的独立读者审阅轨迹。" />
+    <meta name="description" content="在真实执行的两轮订单对账开发任务中，逐条对照模型原稿与 Humanize 审阅后的用户回复。" />
     <meta name="theme-color" content="#F5F7FC" />
-    <title>Human Harness · 读者实验室</title>
-    <link rel="stylesheet" href="./style.css" />
-    <script type="module" src="./app.js"></script>
+    <title>Human Harness · 同一条回复，修改前后</title>
+    <link rel="stylesheet" href="./full-task.css" />
+    <script type="module" src="./full-task.js"></script>
   </head>
   <body>
-    <a class="skip-link" href="#main">跳到实验内容</a>
+    <a class="skip-link" href="#main">跳到完整任务</a>
     <header class="site-header">
-      <a class="brand" href="./" aria-label="Human Harness 读者实验室首页">
-        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span><strong>Human Harness</strong><small>读者实验室</small></span>
-      </a>
+      <a class="brand" href="./"><strong>Human Harness</strong><span>从工作到表达</span></a>
       <nav aria-label="站点导航">
-        <a href="#methodology">实验方法</a>
-        <a href="./data/benchmark.json" download="humanize-benchmark.json">下载数据 <span aria-hidden="true">↓</span></a>
-        <a href="https://github.com/hzeroyuke/human_harness/tree/feat/trajectory-explorer" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="./archive.html">历史小任务</a>
+        <a href="#methodology">实验怎么做</a>
+        <a href="https://github.com/hzeroyuke/human_harness/tree/feat/trajectory-explorer" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
       </nav>
     </header>
-
     <main id="main">
       <section class="introduction" aria-labelledby="page-title">
-        <div>
-          <p class="eyebrow">一次不知道内幕的阅读</p>
-          <h1 id="page-title">看不懂的那一步，<br class="mobile-break" />发生在哪？</h1>
-          <p class="intro-copy">同一份草稿，一边直接交给用户，一边先交给独立读者。<br class="desktop-break" />比较两份回复，再沿着审阅、查证与改写的过程往回看。</p>
-        </div>
-        <div class="experiment-note">
-          <p>读者最初只看<br /><strong>用户看得到的对话。</strong></p>
-          <small>读不懂时才查询执行记录，<br />改写后换一个全新的读者复审。</small>
-        </div>
+        <p class="eyebrow">真实任务里的回复改写</p>
+        <h1 id="page-title">同一条回答，<br />改完更好懂了吗？</h1>
+        <p class="intro-copy">把模型准备发送的原稿，交给只看用户对话的独立读者。<br class="desktop-break" />在一项真实执行的开发任务中，对照每条回复审阅前后的变化。</p>
+        <a class="archive-note" href="./archive.html">上一批 150 条是合成任务背景下的表达实验，完整保留在历史页 ↗</a>
       </section>
 
-      <div id="load-state" class="load-state" role="status"><span class="loading-dot" aria-hidden="true"></span>正在读取实验轨迹…</div>
-
+      <div id="load-state" class="load-state" role="status">正在读取完整工作记录…</div>
       <div id="app" hidden>
-        <section class="experiment-browser" aria-labelledby="browser-title">
-          <div class="section-top">
-            <div><p class="eyebrow">选一格，打开一条轨迹</p><h2 id="browser-title" tabindex="-1">模型 × 任务</h2></div>
-            <p id="coverage" class="coverage"></p>
-          </div>
-          <div class="controls">
-            <fieldset class="mode-switch">
-              <legend class="sr-only">对比方法</legend>
-              <label><input type="radio" name="mode" value="fixed" checked /><span>固定草稿</span></label>
-              <label><input type="radio" name="mode" value="generated" /><span>模型生成草稿</span></label>
-            </fieldset>
-            <label class="filter-control"><span>模型</span><select id="model-filter"><option value="all">全部模型</option></select></label>
-            <label class="filter-control"><span>任务</span><select id="task-filter"><option value="all">全部任务</option></select></label>
-            <label class="filter-control"><span>结果</span><select id="status-filter"><option value="all">全部结果</option><option value="changed">改写后通过</option><option value="unchanged">原样通过</option><option value="failed">未通过</option><option value="unavailable">调用不可用</option></select></label>
-            <button id="reset-filters" class="text-button" type="button">重置</button>
-          </div>
-          <p id="mode-description" class="mode-description"></p>
-          <div class="matrix-shell">
-            <div class="matrix-scroll" tabindex="0" role="region" aria-label="模型与任务结果矩阵，可横向滚动">
-              <table id="matrix"><caption class="sr-only">每个单元格是一条模型与任务的实验记录</caption><thead></thead><tbody></tbody></table>
-            </div>
-            <div id="matrix-empty" class="empty-state" hidden><strong>没有符合筛选条件的记录</strong><p>换一个结果或模型筛选，或点击“重置”。</p></div>
-          </div>
-          <div class="matrix-footer">
-            <ul class="legend" aria-label="结果说明"><li><span class="legend-dot changed"></span>改写后通过</li><li><span class="legend-dot unchanged"></span>原样通过</li><li><span class="legend-dot failed"></span>未通过</li><li><span class="legend-dot unavailable"></span>调用不可用</li></ul>
-            <p id="visible-count"></p>
-          </div>
+        <section class="task-brief" aria-labelledby="task-title">
+          <div class="brief-heading"><p class="eyebrow">这些回复来自怎样的一项工作</p><h2 id="task-title"></h2><p id="task-description"></p></div>
+          <div id="task-rounds" class="task-rounds"></div>
+          <p id="batch-state" class="batch-state"></p>
         </section>
 
-        <section id="comparison" class="comparison" aria-labelledby="case-title" tabindex="-1" hidden>
-          <div class="case-heading">
-            <div><p id="case-category" class="eyebrow"></p><div class="case-title-line"><h2 id="case-title"></h2><a class="back-to-matrix" href="#browser-title">↑ 回到矩阵</a></div><p id="case-model" class="case-model"></p></div>
-            <div class="case-actions"><button id="share-case" class="secondary-button" type="button">复制这条链接 <span aria-hidden="true">↗</span></button><button id="download-case" class="icon-button" type="button" aria-label="下载这条轨迹 JSON" title="下载这条轨迹 JSON">↓</button></div>
-          </div>
-          <div class="reader-context"><span class="context-label">用户已知</span><div id="visible-input"></div></div>
-          <div class="comparison-grid">
-            <article class="response-panel response-before"><header><div><span class="panel-label">关闭 Humanize</span><h3>原始回复</h3></div><span id="before-source" class="panel-tag">预设草稿</span></header><div id="before-text" class="response-text"></div></article>
-            <article class="response-panel response-after"><header><div><span class="panel-label">开启 Humanize</span><h3 id="after-title">给用户的回复</h3></div><span id="outcome-badge" class="status-badge"></span></header><div id="after-text" class="response-text"></div><p id="after-note" class="after-note"></p></article>
-          </div>
-          <div class="visible-boundary"><span aria-hidden="true"></span><p>上面是用户会看到的内容；下面是这一条回复的内部审阅过程。</p><span aria-hidden="true"></span></div>
-          <dl id="run-metrics" class="run-metrics"></dl>
-          <div id="run-warning" class="run-warning" hidden></div>
+        <section id="comparison" class="comparison" aria-labelledby="comparison-title" tabindex="-1">
+          <div class="section-heading"><div><p class="eyebrow">同一次执行 · 同一条回复</p><h2 id="comparison-title">这条回复，修改前后</h2></div><button id="share-view" class="secondary-button" type="button">复制当前链接</button></div>
+          <p id="selection-hint" class="selection-hint" hidden>先看一条实际改写示例。原样通过和被拦下的消息，也都可以在下方选择。</p>
+          <div class="view-controls"><label class="model-control" for="model-select"><span>执行模型</span><select id="model-select"></select></label><div id="round-select" class="round-select" role="group" aria-label="选择任务轮次"></div></div>
+          <div class="message-control"><label for="message-select">选择这轮的一条回复</label><select id="message-select"></select><p id="message-caption"></p></div>
+          <div id="reader-context"></div>
+          <p class="comparison-note">左边是主模型准备发送的原稿，右边是这条原稿经过 Humanize 后获准发送的文字。未经改写的原文也会如实显示。</p>
+          <div id="delivery-grid" class="delivery-grid"></div>
+          <div id="selected-review"></div>
+        </section>
 
-          <section class="trajectory" aria-labelledby="trajectory-title">
-            <div class="section-top"><div><p class="eyebrow">沿着实际调用展开</p><h3 id="trajectory-title">这份回复，怎样走到最后</h3></div><p id="trajectory-caption"></p></div>
-            <nav id="phase-navigation" class="phase-navigation" aria-label="跳到某次模型调用"></nav>
-            <ol id="phase-list" class="phase-list"></ol>
-            <p id="no-phases" class="empty-state" hidden>这次调用没有产生可用的审阅步骤；错误原因保留在上方。</p>
-          </section>
+        <section id="work-record" class="work-record" aria-labelledby="record-title">
+          <div class="section-heading"><div><p class="eyebrow">每一步都有真实记录</p><h2 id="record-title">从需求走到回复</h2></div><p id="record-caption" class="section-caption"></p></div>
+          <div id="task-outcome"></div>
+          <div id="trace-content"></div>
+          <div id="file-changes" class="file-changes"></div>
+        </section>
 
-          <div class="supporting-records">
-            <details class="supporting-detail"><summary><span>执行记录</span><small>首次盲审看不到的背景</small></summary><div id="execution-evidence" class="supporting-body"></div></details>
-            <details class="supporting-detail"><summary><span>机械检查</span><small id="quality-caption">检查输入边界与内容保留</small></summary><div class="supporting-body"><p class="small-note">这些检查验证流程约束，不是对答案质量或事实正确性的评分。</p><ul id="quality-checks" class="quality-checks"></ul></div></details>
-          </div>
+        <section class="all-runs" aria-labelledby="all-runs-title">
+          <div class="section-heading"><div><p class="eyebrow">包含成功、拦截与中断</p><h2 id="all-runs-title">全部执行都在这里</h2></div><p id="run-count" class="section-caption"></p></div>
+          <div id="run-table" class="table-scroll" tabindex="0" role="region" aria-label="所有模型的执行结果，可横向滚动"></div>
         </section>
 
         <section id="methodology" class="methodology" aria-labelledby="method-title">
-          <div><p class="eyebrow">先读清楚，再下判断</p><h2 id="method-title">这些实验能说明什么？</h2></div>
-          <div class="method-body">
-            <p><strong>固定草稿</strong>让不同读者模型面对同一道题；<strong>模型生成草稿</strong>先由所选模型产生回复，再比较同一份回复经过审阅前后的差异。</p>
-            <p>用户输入和执行记录来自合成测试场景，其中描述的任务没有实际执行。审阅、查证、改写与复审都调用真实模型。每条记录保留原始请求、返回和失败情况。</p>
-            <p>“通过”只代表本轮读者认为可以理解，不代表事实正确，也不是模型能力排名。每个组合仅运行一次；耗时受代理、网络、并发和模型状态影响。</p>
-            <details class="method-details"><summary>查看这批实验的参数与覆盖范围</summary><div id="method-parameters"></div></details>
-            <p class="data-download"><a href="./data/benchmark.json" download="humanize-benchmark.json">下载全部原始数据 JSON ↓</a></p>
+          <div><p class="eyebrow">理解这次对照的边界</p><h2 id="method-title">这些结果怎么读？</h2></div>
+          <div class="method-copy">
+            <p><strong>业务验收</strong>检查修改后的程序是否满足规则。验收脚本位于模型可修改的项目之外；检查不通过，表示仍有具体功能没有做好。</p>
+            <p><strong>表达检查</strong>只判断用户能否读懂当前消息。读者最初只能看到用户输入和已经展示的回复，需要解释隐藏背景时才查阅工具记录。表达通过不等于程序正确。</p>
+            <p>开启 Humanize 后，每条准备给用户的消息都先审阅。审阅不能放行时，该消息不会展示，执行也可能在中途停止。页面会保留停止位置和已经完成的工作。</p>
+            <p>每个模型从同一份初始项目执行两轮需求；页面比较同一次执行、同一条消息进入 Humanize 前后的文字。没有用两次独立生成的答案替代前后对比。</p>
+            <ul id="method-limits"></ul>
+            <details class="raw-detail"><summary>运行参数与系统提示词</summary><div id="method-raw"></div></details>
+            <p class="method-links"><a href="./data/full-task.json" download="humanize-full-task.json">下载完整工作记录 ↓</a><a href="./archive.html">查看历史合成实验 ↗</a></p>
           </div>
         </section>
       </div>
     </main>
-    <footer class="site-footer"><p>Human Harness <span aria-hidden="true">/</span> 基于 Pi 的独立读者实验</p><p id="data-date">轨迹数据按实验批次更新</p></footer>
+    <footer class="site-footer"><p>Human Harness / 基于 Pi 的独立读者实验</p><p id="data-date">真实工具记录，不包含模型私有思考</p></footer>
     <p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
   </body>
 </html>

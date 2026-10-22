@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "runId": "mai-code-1.1-flash-complete-v1",
+  "roundId": "1",
+  "messageId": "r1-message-16",
+  "diagnostic": {
+    "kind": "protected-content",
+    "source": "offline-replay",
+    "title": "改写稿被内容保护拦截",
+    "detail": "候选稿删除了原稿中的 430.20、20.00、410.20 等 13 种金额。系统拒绝了这份候选稿，最终回复没有发出。此结论来自相同源码和已保存响应的本地重放，原始通用错误仍保留。",
+    "phaseIndex": 1
+  },
+  "protectionFailure": {
+    "verifiedBy": "saved-response-replay",
+    "reason": "改写稿丢失关键金额，被内容保护拦截",
+    "engineError": "Humanize revision changed protected technical content.",
+    "missingLiterals": [
+      "430.20",
+      "20.00",
+      "410.20",
+      "80.00",
+      "30.00",
+      "50.00",
+      "35.00",
+      "0.00",
+      "70.00",
+      "150.00",
+      "120.00",
+      "555.20",
+      "155.00"
+    ],
+    "sourceSha256": "e5d1eea607abcf3c56ee17289eb8c4a286755b23775843dc50b099206e9e21a5",
+    "originalSha256": "b297f1b22de041f022627603c7638ae8c98f3cd6a08b3c90994a23466ad39d2c",
+    "rewriteResponseSha256": "7a73da8bdf2ef1d7ec72694441026618c1cdf4ea2da55b751b2a627a630bcb0c",
+    "requestsMatchSaved": true,
+    "reportMatchesSaved": true,
+    "report": {
+      "status": "failed",
+      "revisions": 0,
+      "calls": 2,
+      "lookedUpContext": false,
+      "usage": {
+        "input": 2769,
+        "output": 5420,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "reasoning": 4160,
+        "totalTokens": 8189,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0
+        }
+      }
+    },
+    "scope": "根据已保存响应离线重放；未重新调用模型或执行开发任务，不替代原始错误记录。"
+  }
+}

@@ -4,7 +4,7 @@
 
 数据时间：`2026-10-21T13:07:14.694Z` 至 `2026-10-21T13:38:40.642Z`。模型标识来自本次本地代理目录，按目录原顺序列出；它们不代表公开产品的发布或可用性。3 个向量模型不生成对话，排除在覆盖率之外。
 
-[交互轨迹页面](https://hzeroyuke.github.io/human_harness/) · [完整 JSON 数据](../../site/data/benchmark.json) · [合成任务夹具](./benchmark-cases.json)
+[交互轨迹页面](https://hzeroyuke.github.io/human_harness/archive.html) · [完整 JSON 数据](../../site/data/benchmark.json) · [合成任务夹具](./benchmark-cases.json)
 
 ## 如何读这些数字
 
@@ -70,10 +70,10 @@
 
 | 生成阶段错误 | 条数 | 原始轨迹示例 |
 | --- | ---: | --- |
-| 请求取消（Request aborted） | 2 | [gpt-6-sol](https://hzeroyuke.github.io/human_harness/?run=gpt-6-sol%3Arelease-status%3Agenerated&mode=generated#comparison) |
-| HTTP 504：上游未及时返回响应头 | 1 | [grok-4.6](https://hzeroyuke.github.io/human_harness/?run=grok-4.6%3Arelease-status%3Agenerated&mode=generated#comparison) |
-| WebSocket 连接建立失败 | 11 | [mai-code-1.1-flash](https://hzeroyuke.github.io/human_harness/?run=mai-code-1.1-flash%3Arelease-status%3Agenerated&mode=generated#comparison) |
-| HTTP 500：fetch failed | 6 | [mai-code-2-flash](https://hzeroyuke.github.io/human_harness/?run=mai-code-2-flash%3Arelease-status%3Agenerated&mode=generated#comparison) |
+| 请求取消（Request aborted） | 2 | [gpt-6-sol](https://hzeroyuke.github.io/human_harness/archive.html?run=gpt-6-sol%3Arelease-status%3Agenerated&mode=generated#comparison) |
+| HTTP 504：上游未及时返回响应头 | 1 | [grok-4.6](https://hzeroyuke.github.io/human_harness/archive.html?run=grok-4.6%3Arelease-status%3Agenerated&mode=generated#comparison) |
+| WebSocket 连接建立失败 | 11 | [mai-code-1.1-flash](https://hzeroyuke.github.io/human_harness/archive.html?run=mai-code-1.1-flash%3Arelease-status%3Agenerated&mode=generated#comparison) |
+| HTTP 500：fetch failed | 6 | [mai-code-2-flash](https://hzeroyuke.github.io/human_harness/archive.html?run=mai-code-2-flash%3Arelease-status%3Agenerated&mode=generated#comparison) |
 
 此外，辅助阶段的 4 条接口失败中，3 条记录为上游 WebSocket 连接丢失，1 条较早的固定草稿改写记录为 internal server error。主模型无文本的 20 条尚未进入 Humanize 审阅；这些接口失败不能解释为回复不可理解。记录显示故障集中出现，但不能据此确定底层根因。
 
@@ -96,7 +96,7 @@
 
 这些对照用于观察对预设清晰文字的不必要干预，包括改写、额外查证或拦截，不等于人类可读性评分，也不证明每次改写都有害。接口故障也可能让检查失败，应结合原始失败原因判断。
 
-部分读者把“看懂回复”扩展成“仅凭可见对话核验工作事实”。例如 [gpt-6.1-sol 的上线状态轨迹](https://hzeroyuke.github.io/human_harness/?run=gpt-6.1-sol%3Arelease-status%3Afixed#comparison)，经过 2 次查证与 2 次改写，最后仍要求核实已经由查证提供的状态。
+部分读者把“看懂回复”扩展成“仅凭可见对话核验工作事实”。例如 [gpt-6.1-sol 的上线状态轨迹](https://hzeroyuke.github.io/human_harness/archive.html?run=gpt-6.1-sol%3Arelease-status%3Afixed#comparison)，经过 2 次查证与 2 次改写，最后仍要求核实已经由查证提供的状态。
 
 最近一次查证已经给出的说明（原文节选）：
 
@@ -114,7 +114,7 @@
 
 这会形成对表达理解帮助不大的重复查证和拦截，不能把这样的失败全部说成草稿仍不可理解。该轨迹也涉及用户身份和适用范围等正当问题，过度核验只是其中可观察的一部分。应区分“缺少必要定义”和“要求盲审者独立证明所有执行事实”。
 
-另一方向也存在：[gemini-3.8-flash 的代码修复轨迹](https://hzeroyuke.github.io/human_harness/?run=gemini-3.8-flash%3Acode-fix%3Afixed#comparison) 首轮原样批准，回复仍保留“空槽短路”“边界门”。用户明确懂 TypeScript 且回复给出代码；读者可能认为这些背景已足够，这是根据样例作出的推测，不是模型记录的真实理由。批准不保证术语已经全部解释。
+另一方向也存在：[gemini-3.8-flash 的代码修复轨迹](https://hzeroyuke.github.io/human_harness/archive.html?run=gemini-3.8-flash%3Acode-fix%3Afixed#comparison) 首轮原样批准，回复仍保留“空槽短路”“边界门”。用户明确懂 TypeScript 且回复给出代码；读者可能认为这些背景已足够，这是根据样例作出的推测，不是模型记录的真实理由。批准不保证术语已经全部解释。
 
 ## 原文对比
 
@@ -122,7 +122,7 @@
 
 ### 1. 导出进度：内部代号 · 改写后通过
 
-解释原始回复里的内部代号。模型：`gemini-3.8-flash`；模式：固定草稿。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/?run=gemini-3.8-flash%3Aexport-status%3Afixed#comparison)。
+解释原始回复里的内部代号。模型：`gemini-3.8-flash`；模式：固定草稿。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/archive.html?run=gemini-3.8-flash%3Aexport-status%3Afixed#comparison)。
 
 调用顺序：盲审 → 查证 → 改写 → 盲审。辅助调用 4 次；已报告 token 1,516。
 
@@ -146,7 +146,7 @@
 
 ### 2. 上线状态：谁完成了什么 · 未获批准，未展示
 
-保留审阅反复查证、最终拦截的失败。模型：`gpt-6.1-sol`；模式：固定草稿。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/?run=gpt-6.1-sol%3Arelease-status%3Afixed#comparison)。
+保留审阅反复查证、最终拦截的失败。模型：`gpt-6.1-sol`；模式：固定草稿。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/archive.html?run=gpt-6.1-sol%3Arelease-status%3Afixed#comparison)。
 
 调用顺序：盲审 → 查证 → 改写 → 盲审 → 查证 → 改写 → 盲审。辅助调用 7 次；已报告 token 4,261。
 
@@ -196,7 +196,7 @@ Humanize could not approve the message within its revision limit.
 
 ### 3. 代码修复：保护代码与数字 · 原样通过
 
-原样批准也可能保留内部术语。模型：`gemini-3.8-flash`；模式：固定草稿。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/?run=gemini-3.8-flash%3Acode-fix%3Afixed#comparison)。
+原样批准也可能保留内部术语。模型：`gemini-3.8-flash`；模式：固定草稿。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/archive.html?run=gemini-3.8-flash%3Acode-fix%3Afixed#comparison)。
 
 调用顺序：盲审。辅助调用 1 次；已报告 token 388。
 
@@ -226,7 +226,7 @@ if (items.length === 0) return [];
 
 ### 4. 研究结论：证据与未知定义 · 改写后通过
 
-观察证据边界与未知定义的表达。模型：`gemini-4-argon`；模式：固定草稿。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/?run=gemini-4-argon%3Aresearch-evidence%3Afixed#comparison)。
+观察证据边界与未知定义的表达。模型：`gemini-4-argon`；模式：固定草稿。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/archive.html?run=gemini-4-argon%3Aresearch-evidence%3Afixed#comparison)。
 
 调用顺序：盲审 → 查证 → 改写 → 盲审。辅助调用 4 次；已报告 token 2,005。
 
@@ -253,7 +253,7 @@ if (items.length === 0) return [];
 
 ### 5. 英文技术读者：不解释已知术语 · 原样通过
 
-观察对技术读者的清晰对照是否保持原样。模型：`gemini-3.8-flash`；模式：固定草稿。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/?run=gemini-3.8-flash%3Aenglish-expert%3Afixed#comparison)。
+观察对技术读者的清晰对照是否保持原样。模型：`gemini-3.8-flash`；模式：固定草稿。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/archive.html?run=gemini-3.8-flash%3Aenglish-expert%3Afixed#comparison)。
 
 调用顺序：盲审。辅助调用 1 次；已报告 token 362。
 
@@ -277,7 +277,7 @@ Retries now use exponential backoff with jitter for idempotent requests. Non-ide
 
 ### 6. 数据分析：指标分母 · 主模型未产出草稿
 
-保留连接失败、未产生草稿的生成尝试。模型：`gemini-3.8-flash`；模式：模型生成尝试。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/?run=gemini-3.8-flash%3Adata-analysis%3Agenerated&mode=generated#comparison)。
+保留连接失败、未产生草稿的生成尝试。模型：`gemini-3.8-flash`；模式：模型生成尝试。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/archive.html?run=gemini-3.8-flash%3Adata-analysis%3Agenerated&mode=generated#comparison)。
 
 调用顺序：主模型生成。辅助调用 0 次；已报告 token 0。
 
@@ -309,7 +309,7 @@ generation 阶段错误（原文）：
 
 ### 7. 上线状态：谁完成了什么 · 原样通过
 
-观察自然生成成功的草稿如何原样通过。模型：`gemini-3.8-flash`；模式：模型生成尝试。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/?run=gemini-3.8-flash%3Arelease-status%3Agenerated&mode=generated#comparison)。
+观察自然生成成功的草稿如何原样通过。模型：`gemini-3.8-flash`；模式：模型生成尝试。[查看完整轨迹](https://hzeroyuke.github.io/human_harness/archive.html?run=gemini-3.8-flash%3Arelease-status%3Agenerated&mode=generated#comparison)。
 
 调用顺序：主模型生成 → 盲审。辅助调用 1 次；已报告 token 794。
 

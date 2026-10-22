@@ -1,8 +1,8 @@
 const $ = (selector) => document.querySelector(selector);
 const DATA_URL = new URL("./data/benchmark.json", import.meta.url);
 const PHASE_NAMES = { generation: "生成原始回复", review: "独立盲审", lookup: "查证背景", rewrite: "改写回复" };
-const STATUS_NAMES = { changed: "改写后通过", unchanged: "原样通过", failed: "未通过", unavailable: "调用不可用", pending: "执行中" };
-const SHORT_STATUS_NAMES = { changed: "已改写", unchanged: "原样", failed: "未通过", unavailable: "不可用", pending: "执行中" };
+const STATUS_NAMES = { changed: "改写后通过", unchanged: "原样通过", failed: "审阅未放行", unavailable: "调用不可用", pending: "执行中" };
+const SHORT_STATUS_NAMES = { changed: "已改写", unchanged: "原样", failed: "未放行", unavailable: "不可用", pending: "执行中" };
 const STATUS_SYMBOLS = { changed: "↻", unchanged: "✓", failed: "×", unavailable: "—", pending: "…" };
 const state = { dataset: null, mode: "fixed", model: "all", task: "all", status: "all", runId: null };
 let shareResetTimer;
@@ -18,6 +18,17 @@ function statusKey(run) {
   if (run.state === "running") return "pending";
   if (run.status === "approved") return run.after === run.before ? "unchanged" : "changed";
   return run.status === "unavailable" ? "unavailable" : "failed";
+}
+
+function failureExplanation(run) {
+  if (run.status === "approved" || run.state === "running") return "";
+  const error = formatJSON(run.error ?? "");
+  if (run.mode === "generated" && !run.phases.some((phase) => phase.phase === "review")) return "原始回复生成失败，尚未进入表达审阅。这是模型接口调用问题，不是读者否决了一份答案。";
+  if (/revision limit/i.test(error)) return `达到 ${run.report?.revisions ?? 2} 次改写后，读者仍未批准。工作是否完成没有在这批合成实验中验证。`;
+  if (/invalid review decision|invalid review response/i.test(error)) return "审阅返回的格式无效，系统没有获得可执行的批准决定。";
+  if (run.status === "unavailable" || /incomplete review response|fetch failed|WebSocket|HTTP 5/i.test(error)) return "审阅辅助调用未正常完成；这类接口错误不能说明草稿是否容易理解。";
+  if (/timed out|timeout/i.test(error)) return "审阅超过时间限制，未能得出批准结果。";
+  return "表达审阅没有获得有效批准，草稿未放行；这不等于任务功能验收失败。";
 }
 
 function formatDuration(duration) {
@@ -368,8 +379,9 @@ function renderInspector(run) {
   $("#outcome-badge").textContent = STATUS_NAMES[kind];
   $(".response-after").classList.toggle("is-withheld", run.status !== "approved" && kind !== "pending");
   $("#after-note").textContent = kind === "pending" ? "重新加载页面可以读取最新记录。" : generationOnly ? "这是原始回复生成阶段的失败，不是读者对草稿的否决。" : kind === "unchanged" ? "读者没有提出理解问题，原文直接通过。" : kind === "changed" ? "改写后由新的盲审上下文再次检查。通过仅代表本轮读者认为可以理解。" : "审阅出错或无法通过时停止输出，不自动放行未审阅草稿。";
-  $("#run-warning").hidden = !run.error;
-  $("#run-warning").textContent = run.error ? `保留的错误信息：${formatJSON(run.error)}` : "";
+  const explanation = failureExplanation(run);
+  $("#run-warning").hidden = !explanation && !run.error;
+  $("#run-warning").textContent = `${explanation}${run.error ? `\n\n保留的错误信息：${formatJSON(run.error)}` : ""}`;
   renderMetrics(run);
   renderPhases(run);
   renderEvidence(run, task);

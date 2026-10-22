@@ -1,0 +1,9 @@
+{
+  "name": "shop-daily-reconciliation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "report": "node src/cli.mjs --orders data/orders.json --events data/events.json --date 2026-10-20 --out reports"
+  }
+}
