@@ -12,6 +12,7 @@ import { getClientIdentity } from "./client-identity.ts";
 import { DEFAULT_THINKING_LEVEL } from "./defaults.ts";
 import type { ExtensionRunner, LoadExtensionsResult, SessionStartEvent, ToolDefinition } from "./extensions/index.ts";
 import { HumanizeError, type HumanizeVisibleMessage, humanizeMessage } from "./humanize.ts";
+import { HumanizeTraceRecorder } from "./humanize-records.ts";
 import { humanizeStream } from "./humanize-stream.ts";
 import { createToolNameMatcher } from "./mcp-servers.ts";
 import { convertToLlm } from "./messages.ts";
@@ -434,18 +435,17 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 			if (!reviewOutput) return source;
 			// A cancelled provider may settle after the caller has replaced the active session.
 			const isCurrentSession = () => sessionManager.getSessionId() === requestSessionId;
+			let recorder: HumanizeTraceRecorder | undefined;
 			return humanizeStream(
 				source,
 				async (message) => {
-					const readerModel =
-						humanize?.model || humanize?.provider
-							? modelRuntime.getModel(humanize.provider ?? model.provider, humanize.model ?? model.id)
-							: model;
-					if (!readerModel) throw new Error("Humanize reader model is not configured.");
+					const contextLeafId = sessionManager.getLeafId();
+					const branch = sessionManager.getBranch();
+					const executionMessages = branch.flatMap((entry) => (entry.type === "message" ? [entry.message] : []));
 					const visibleMessages: HumanizeVisibleMessage[] = [];
 					// Read the visible branch, not model context: compacted summaries and hidden extension prompts
 					// must not teach the reader definitions the human was never shown.
-					for (const entry of sessionManager.getBranch()) {
+					for (const entry of branch) {
 						if (entry.type !== "message") continue;
 						const prior = entry.message;
 						if (prior.role !== "user" && prior.role !== "assistant") continue;
@@ -458,48 +458,73 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 										.join("\n");
 						if (text.trim()) visibleMessages.push({ role: prior.role, text });
 					}
+					if (humanize?.record === true) {
+						recorder = new HumanizeTraceRecorder({
+							sessionId: requestSessionId,
+							contextLeafId,
+							message,
+							visibleMessages,
+							executionMessages,
+							settings: humanize,
+						});
+					}
 					try {
+						const readerModel =
+							humanize?.model || humanize?.provider
+								? modelRuntime.getModel(humanize.provider ?? model.provider, humanize.model ?? model.id)
+								: model;
+						if (!readerModel) {
+							recorder?.fail("Humanize reader model is not configured.");
+							throw new Error("Humanize reader model is not configured.");
+						}
+						recorder?.setReaderModel(readerModel);
 						const result = await humanizeMessage({
 							message,
 							visibleMessages,
 							settings: humanize,
 							signal: options?.signal,
-							getExecutionMessages: () =>
-								sessionManager
-									.getBranch()
-									.flatMap((entry) => (entry.type === "message" ? [entry.message] : [])),
+							getExecutionMessages: () => executionMessages,
 							complete: async (systemPrompt, payload, signal) => {
-								// Never reuse the main request's payload hooks, tools, or provider conversation cache.
-								const review = modelRuntime.streamSimple(
-									readerModel,
-									{
-										messages: [
-											{ role: "system", content: systemPrompt, timestamp: Date.now() },
-											{ role: "user", content: JSON.stringify(payload), timestamp: Date.now() },
-										],
-									},
-									buildRequestOptions({
-										signal,
-										sessionId: `${requestSessionId}:humanize:${randomUUID()}`,
-										maxTokens: Math.min(8192, readerModel.maxTokens),
-										maxRetries: 0,
-										transport: "sse",
-										cacheRetention: "none",
-									}),
-								);
-								for await (const _event of review) {
-									/* Drain internal events without exposing review text. */
+								const phaseIndex = recorder?.startPhase(systemPrompt, payload) ?? -1;
+								try {
+									// Never reuse the main request's payload hooks, tools, or provider conversation cache.
+									const review = modelRuntime.streamSimple(
+										readerModel,
+										{
+											messages: [
+												{ role: "system", content: systemPrompt, timestamp: Date.now() },
+												{ role: "user", content: JSON.stringify(payload), timestamp: Date.now() },
+											],
+										},
+										buildRequestOptions({
+											signal,
+											sessionId: `${requestSessionId}:humanize:${randomUUID()}`,
+											maxTokens: Math.min(8192, readerModel.maxTokens),
+											maxRetries: 0,
+											transport: "sse",
+											cacheRetention: "none",
+										}),
+									);
+									for await (const _event of review) {
+										/* Drain internal events without exposing review text. */
+									}
+									const response = await review.result();
+									recorder?.completePhase(phaseIndex, response);
+									if (isCurrentSession()) {
+										sessionManager.appendUsage("humanize", response.provider, response.model, response.usage);
+									}
+									return response;
+								} catch (error) {
+									recorder?.failPhase(phaseIndex);
+									throw error;
 								}
-								const response = await review.result();
-								if (isCurrentSession()) {
-									sessionManager.appendUsage("humanize", response.provider, response.model, response.usage);
-								}
-								return response;
 							},
 						});
+						recorder?.approve(result.message, result.report);
 						if (isCurrentSession()) sessionManager.appendCustomEntry("humanize", result.report);
 						return result.message;
 					} catch (error) {
+						if (error instanceof HumanizeError) recorder?.fail(error.message, error.report);
 						if (error instanceof HumanizeError && isCurrentSession()) {
 							sessionManager.appendCustomEntry("humanize", error.report);
 						}
@@ -507,6 +532,9 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 					}
 				},
 				options?.signal,
+				(message) => {
+					if (isCurrentSession()) recorder?.finish(message);
+				},
 			);
 		},
 		onPayload: transformProviderPayload,

@@ -16,6 +16,12 @@ const CompactionModelOverrideSchema = Type.Object({
 });
 
 const HumanizeSettingsSchema = Type.Object({
+	record: Type.Optional(
+		Type.Boolean({
+			default: false,
+			description: "Save local Humanize traces for personal feedback and replay. May contain private project text.",
+		}),
+	),
 	enabled: Type.Optional(Type.Boolean({ default: false, description: "Review assistant text before displaying it." })),
 	maxRevisions: Type.Optional(Type.Integer({ minimum: 0, maximum: 5, default: 2 })),
 	timeoutMs: Type.Optional(Type.Integer({ minimum: 1, maximum: 300000, default: 90000 })),

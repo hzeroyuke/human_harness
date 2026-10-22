@@ -9,9 +9,17 @@ export function humanizeStream(
 	source: AssistantMessageEventStream,
 	review: (message: AssistantMessage) => Promise<AssistantMessage>,
 	signal?: AbortSignal,
+	onComplete?: (message: AssistantMessage) => void,
 ): AssistantMessageEventStream {
 	const output = new AssistantMessageEventStream();
 	let latest: AssistantMessage | undefined;
+	const notifyComplete = (message: AssistantMessage): void => {
+		try {
+			onComplete?.(message);
+		} catch {
+			// Local diagnostic recording must not suppress an approved reply or leave the stream pending.
+		}
+	};
 
 	const consume = async (): Promise<AssistantMessage> => {
 		// Drain deltas as they arrive instead of retaining the provider's event queue.
@@ -42,11 +50,13 @@ export function humanizeStream(
 			signal?.throwIfAborted();
 			if (message.stopReason === "error" || message.stopReason === "aborted") {
 				const error = { ...message, content: [] };
+				notifyComplete(error);
 				output.push({ type: "error", reason: message.stopReason, error });
 				output.end(error);
 				return;
 			}
 			if (message.stopReason === "pending") throw new Error("Response did not finish");
+			notifyComplete(message);
 			replay(output, message);
 			output.push({ type: "done", reason: message.stopReason, message });
 			output.end(message);
@@ -75,6 +85,7 @@ export function humanizeStream(
 					? "Humanize review cancelled; the unreviewed response was withheld."
 					: "Humanize review failed; the unreviewed response was withheld. Retry or disable humanize in settings.",
 			};
+			notifyComplete(error);
 			output.push({ type: "error", reason: aborted ? "aborted" : "error", error });
 			output.end(error);
 		}

@@ -31,6 +31,7 @@ import { createInterface } from "readline";
 import { StringDecoder } from "string_decoder";
 import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../config.ts";
 import { normalizePath, resolvePath } from "../utils/paths.ts";
+import { HUMANIZE_TRACE_TYPE, takeHumanizeTrace } from "./humanize-records.ts";
 import {
 	type BashExecutionMessage,
 	type CustomMessage,
@@ -1210,6 +1211,10 @@ export class SessionManager {
 			message,
 		};
 		this._appendEntry(entry);
+		if (message.role === "assistant") {
+			const trace = takeHumanizeTrace(message, this.sessionId, entry.id);
+			if (trace) this.appendCustomEntry(HUMANIZE_TRACE_TYPE, trace);
+		}
 		return entry.id;
 	}
 

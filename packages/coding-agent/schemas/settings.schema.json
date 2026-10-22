@@ -100,6 +100,11 @@
     "humanize": {
       "type": "object",
       "properties": {
+        "record": {
+          "type": "boolean",
+          "default": false,
+          "description": "Save local Humanize traces for personal feedback and replay. May contain private project text."
+        },
         "enabled": {
           "type": "boolean",
           "default": false,
