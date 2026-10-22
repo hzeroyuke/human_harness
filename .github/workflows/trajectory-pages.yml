@@ -9,6 +9,11 @@ on:
       - scripts/check-humanize-benchmark.test.mjs
       - scripts/check-humanize-full-task.mjs
       - scripts/check-humanize-full-task.test.mjs
+      - scripts/check-humanize-full-task-ui.test.mjs
+      - scripts/humanize-full-task-model-options.ts
+      - scripts/humanize-full-task-model-options.test.mjs
+      - scripts/humanize-full-task-limits.ts
+      - scripts/humanize-full-task-limits.test.mjs
       - scripts/replay-humanize-message.ts
       - scripts/replay-humanize-message.test.mjs
       - packages/coding-agent/src/core/humanize.ts
@@ -36,6 +41,8 @@ jobs:
           node-version: 22
       - name: Check the publication validator
         run: node --test scripts/check-humanize-benchmark.test.mjs scripts/check-humanize-full-task.test.mjs
+      - name: Check experiment settings and trajectory selection
+        run: node --test scripts/humanize-full-task-limits.test.mjs scripts/humanize-full-task-model-options.test.mjs scripts/check-humanize-full-task-ui.test.mjs
       - name: Validate complete public trajectories
         run: node scripts/check-humanize-benchmark.mjs site/data/benchmark.json
       - name: Validate full task message pairing

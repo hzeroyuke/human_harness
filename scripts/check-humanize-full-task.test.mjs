@@ -288,3 +288,42 @@ test("rejects invented acceptance totals and missing source hashes", () => {
 	assert.match(errorsOf(data), /acceptance totals disagree/);
 	assert.match(errorsOf(data), /needs source hash runnerSha256/);
 });
+
+
+test("same-model attempts may reuse message ids without sharing their drafts or history", () => {
+	const data = fixture();
+	const retry = rewritten().runs[0];
+	retry.id = "run-b";
+	data.runs.push(retry);
+	const result = validateFullTask(data);
+	assert.deepEqual(result.errors, []);
+	assert.equal(result.summary.models, 1);
+	assert.equal(result.summary.unchanged, 1);
+	assert.equal(result.summary.rewritten, 1);
+	// A same message id from another attempt is still a different response.
+	retry.rounds[0].events[1] = structuredClone(messageOf(data));
+	assert.match(errorsOf(data), /run-b.*original differs from its same-id raw/);
+});
+
+test("pure tool responses retain their trace without inventing visible message pairs", () => {
+	const data = fixture();
+	roundOf(data).rawResponses.unshift({
+		id: "tool-only",
+		state: "received",
+		text: "",
+		toolCalls: [{ id: "call-1", name: "read_file", arguments: { path: "orders.json" } }],
+		stopReason: "toolUse",
+		durationMs: 5,
+	});
+	roundOf(data).events.splice(1, 0, {
+		id: "call-1",
+		type: "tool",
+		name: "read_file",
+		arguments: { path: "orders.json" },
+		result: "[]",
+	});
+	const result = validateFullTask(data);
+	assert.deepEqual(result.errors, []);
+	assert.equal(result.summary.unchanged, 1);
+	assert.equal(result.summary.withheld, 0);
+});

@@ -17,13 +17,21 @@ python3 -m http.server 4173 --directory site
 
 ## 真实完整任务
 
-任务由两轮连续用户需求组成，使用多文件 Node.js 项目和固定业务数据。每个模型从相同的种子文件开始，在同一个会话中完成两轮工作；Humanize 在 SDK 的实际发送入口开启，主模型的每条文字都先审阅，再决定是否释放。没有人为预设原始回复、术语或工具执行结果。
+任务由两轮连续用户需求组成，使用多文件 Node.js 项目和固定业务数据。每次模型尝试从相同的种子文件开始，在同一个会话中完成两轮工作；Humanize 在 SDK 的实际发送入口开启，主模型的每条文字都先审阅，再决定是否释放。没有人为预设原始回复、术语或工具执行结果。
 
 工具只提供项目内读写、运行测试、生成报表和调用外部验收。原始输入与业务说明只读。Node 子进程使用权限限制，项目代码不能访问网络、运行其他进程或读写项目外文件；外部验收位于项目副本之外。验收会使用独立边界样例，不仅检查模型自己写的测试。
 
 每条原稿在模型响应完成时记录；最终稿来自 SDK 实际发出的 `message_end`。盲审只收到可见对话和当前草稿；查证才可读真实工具记录；查证结果不会进入下一轮盲审。公开记录不包含私有思考、认证值或本机绝对路径。
 
 完整脚本、任务规则、限制和运行命令见 [完整任务说明](../examples/humanize/full-task/README.md)。本批是有限样本的行为观察，不是模型排名或总体可读性评分。即使所有语句都原样通过，也保留这个结果；不为制造改善而强行改写。
+
+## 多次尝试与文字数量
+
+同一模型的每次尝试分别保存，页面默认选择该模型最新尝试，也可查看此前的中断或失败。汇总表逐次列出，不用成功重跑覆盖旧结果。分享链接包含模型、`runId`、轮次和消息 ID，确保原稿与最终稿来自同一执行。旧版仅含模型和消息 ID 的链接优先定位最早包含该消息的尝试，保留已分享的旧对照。
+
+每轮显示主模型原始响应数、含文字响应数、纯工具响应数和实际工具调用数。一个响应可以请求多个工具；没有文字的工具响应不会制造“回复对比”。Gemini 首次尝试的两轮分别只有一条文字，但有 22 次和 7 次主模型响应，轨迹没有缺失。
+
+“本次运行参数”展示实际时限、调用上限、上游推理强度及与前次尝试的差异。旧记录没有推理字段时显示“未记录”；未指定上游强度和显式 `low` 分别显示，不能把未指定解释成模型没有推理。扩大时间预算或指定不同推理强度的尝试不能混成统一通过率。失败消息仍只展示原稿、审核过程与停止原因；没有批准时最终稿为空。
 
 ## 历史合成背景数据说明
 
@@ -56,7 +64,9 @@ node --import ./packages/coding-agent/src/experimental/source-resolver.ts \
 ## 发布前检查
 
 ```bash
-node --test scripts/check-humanize-benchmark.test.mjs scripts/check-humanize-full-task.test.mjs
+node --test scripts/check-humanize-benchmark.test.mjs scripts/check-humanize-full-task.test.mjs \
+  scripts/humanize-full-task-limits.test.mjs scripts/humanize-full-task-model-options.test.mjs \
+  scripts/check-humanize-full-task-ui.test.mjs
 node scripts/check-humanize-benchmark.mjs site/data/benchmark.json
 node scripts/check-humanize-full-task.mjs site/data/full-task.json
 node --import ./packages/coding-agent/src/experimental/source-resolver.ts \

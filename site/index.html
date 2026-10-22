@@ -38,7 +38,10 @@
         <section id="comparison" class="comparison" aria-labelledby="comparison-title" tabindex="-1">
           <div class="section-heading"><div><p class="eyebrow">同一次执行 · 同一条回复</p><h2 id="comparison-title">这条回复，修改前后</h2></div><button id="share-view" class="secondary-button" type="button">复制当前链接</button></div>
           <p id="selection-hint" class="selection-hint" hidden>先看一条实际改写示例。原样通过和被拦下的消息，也都可以在下方选择。</p>
-          <div class="view-controls"><label class="model-control" for="model-select"><span>执行模型</span><select id="model-select"></select></label><div id="round-select" class="round-select" role="group" aria-label="选择任务轮次"></div></div>
+          <div class="view-controls"><label class="model-control" for="model-select"><span>执行模型</span><select id="model-select"></select></label><label class="attempt-control" for="attempt-select"><span>执行尝试</span><select id="attempt-select"></select></label><div id="round-select" class="round-select" role="group" aria-label="选择任务轮次"></div></div>
+          <p id="attempt-note" class="attempt-note"></p>
+          <div id="run-settings"></div>
+          <div id="response-summary" class="response-summary" aria-live="polite"></div>
           <div class="message-control"><label for="message-select">选择这轮的一条回复</label><select id="message-select"></select><p id="message-caption"></p></div>
           <div id="reader-context"></div>
           <p class="comparison-note">左边是主模型准备发送的原稿，右边是这条原稿经过 Humanize 后获准发送的文字。未经改写的原文也会如实显示。</p>
@@ -49,22 +52,23 @@
         <section id="work-record" class="work-record" aria-labelledby="record-title">
           <div class="section-heading"><div><p class="eyebrow">每一步都有真实记录</p><h2 id="record-title">从需求走到回复</h2></div><p id="record-caption" class="section-caption"></p></div>
           <div id="task-outcome"></div>
-          <div id="trace-content"></div>
+          <div id="trace-content" tabindex="-1"></div>
           <div id="file-changes" class="file-changes"></div>
         </section>
 
         <section class="all-runs" aria-labelledby="all-runs-title">
           <div class="section-heading"><div><p class="eyebrow">包含成功、拦截与中断</p><h2 id="all-runs-title">全部执行都在这里</h2></div><p id="run-count" class="section-caption"></p></div>
-          <div id="run-table" class="table-scroll" tabindex="0" role="region" aria-label="所有模型的执行结果，可横向滚动"></div>
+          <div id="run-table" class="table-scroll" tabindex="0" role="region" aria-label="所有模型每次尝试的执行结果，可横向滚动"></div>
         </section>
 
         <section id="methodology" class="methodology" aria-labelledby="method-title">
           <div><p class="eyebrow">理解这次对照的边界</p><h2 id="method-title">这些结果怎么读？</h2></div>
           <div class="method-copy">
-            <p><strong>业务验收</strong>检查修改后的程序是否满足规则。验收脚本位于模型可修改的项目之外；检查不通过，表示仍有具体功能没有做好。</p>
+            <p><strong>业务验收</strong>用预设的自动检查核对程序的部分业务规则。验收脚本位于模型可修改的项目之外；通过全部检查不代表所有交付要求或回复质量都已合格。每项检查的具体范围可在验收明细中查看。</p>
             <p><strong>表达检查</strong>只判断用户能否读懂当前消息。读者最初只能看到用户输入和已经展示的回复，需要解释隐藏背景时才查阅工具记录。表达通过不等于程序正确。</p>
             <p>开启 Humanize 后，每条准备给用户的消息都先审阅。审阅不能放行时，该消息不会展示，执行也可能在中途停止。页面会保留停止位置和已经完成的工作。</p>
-            <p>每个模型从同一份初始项目执行两轮需求；页面比较同一次执行、同一条消息进入 Humanize 前后的文字。没有用两次独立生成的答案替代前后对比。</p>
+            <p>每次尝试从记录的初始项目开始，最多执行两轮需求；页面比较同一次执行、同一条消息进入 Humanize 前后的文字。没有用两次独立生成的答案替代前后对比。</p>
+            <p>后续尝试不会覆盖原始结果。每次尝试的调用时限、审阅限制和源码版本分别记录，可在“执行尝试”下方展开查看差异。</p>
             <ul id="method-limits"></ul>
             <details class="raw-detail"><summary>运行参数与系统提示词</summary><div id="method-raw"></div></details>
             <p class="method-links"><a href="./data/full-task.json" download="humanize-full-task.json">下载完整工作记录 ↓</a><a href="./archive.html">查看历史合成实验 ↗</a></p>

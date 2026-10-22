@@ -14,6 +14,7 @@ import { createAgentSession, type ToolDefinition } from "../packages/coding-agen
 import { SessionManager } from "../packages/coding-agent/src/core/session-manager.ts";
 import { SettingsManager } from "../packages/coding-agent/src/core/settings-manager.ts";
 import { readFullTaskLimits } from "./humanize-full-task-limits.ts";
+import { readFullTaskModelOptions } from "./humanize-full-task-model-options.ts";
 
 // One process runs one independently seeded, two-round SDK session. Every paired
 // original/approved message comes from one request in this enabled session.
@@ -29,6 +30,7 @@ const baseUrl = process.env.HUMANIZE_TASK_BASE_URL ?? "http://127.0.0.1:4142/v1"
 const api = process.env.HUMANIZE_TASK_API === "openai-responses" ? "openai-responses" : "openai-completions";
 assert(process.env.PI_HUMANIZE === undefined, "Unset PI_HUMANIZE: this experiment controls the setting explicitly.");
 const limits = readFullTaskLimits(process.env);
+const modelOptions = readFullTaskModelOptions(process.env);
 
 interface Acceptance {
 	passed: boolean;
@@ -127,11 +129,15 @@ const run = {
 			.update(await readFile(fileURLToPath(import.meta.url)))
 			.digest("hex"),
 		taskSha256: createHash("sha256").update(taskSource).digest("hex"),
+		modelOptionsSha256: createHash("sha256")
+			.update(await readFile(new URL("./humanize-full-task-model-options.ts", import.meta.url)))
+			.digest("hex"),
 		limitsConfigSha256: createHash("sha256")
 			.update(await readFile(new URL("./humanize-full-task-limits.ts", import.meta.url)))
 			.digest("hex"),
 	},
 	limits,
+	reasoning: modelOptions.reasoning,
 	rounds: [] as Round[],
 };
 let pendingWrite = Promise.resolve();
@@ -372,7 +378,7 @@ runtime.registerProvider(provider, {
 		{
 			id: modelId,
 			name: modelId,
-			reasoning: false,
+			reasoning: modelOptions.modelReasoning,
 			input: ["text"],
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 			contextWindow: 128_000,
@@ -432,6 +438,7 @@ runtime.streamSimple = (selected, context, options) => {
 	// cannot overwrite the next message's original draft or attach to another round.
 	const stream = streamSimple(selected, context, {
 		...options,
+		reasoning: modelOptions.reasoning.effort ?? undefined,
 		timeoutMs: run.limits.requestTimeoutMs,
 		maxRetries: 0,
 		transport: "sse",
@@ -517,7 +524,7 @@ const { session } = await createAgentSession({
 	resourceLoader: loader,
 	tools: customTools.map((tool) => tool.name),
 	customTools,
-	thinkingLevel: "off",
+	thinkingLevel: modelOptions.thinkingLevel,
 });
 abortSession = () => {
 	void session.abort();

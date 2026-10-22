@@ -2,7 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 const DATA_URL = new URL("./data/full-task.json", import.meta.url);
 const PHASE_NAMES = { review: "独立读者审阅", lookup: "查阅执行记录", rewrite: "改写这条消息" };
 const RULE_NAMES = { "北京时间边界": "按北京时间核对订单和通知日期", "幂等去重": "同一笔通知重复发送，只计算一次", "成功状态过滤": "只统计成功的支付和退款", "金额精度与非法金额隔离": "金额精确到分，异常金额单独核查", "退款不误记成欠款": "已退款与未收齐款分别列出", "孤儿通知": "找不到订单的通知单独核查", "部分付款和多付款": "列出需要催款和处理多付款的订单", "稳定排序和 CSV": "结果顺序固定，并导出 CSV 表格", "项目回归测试": "运行测试，确认旧功能仍然正常", "交付文件": "交付 JSON、CSV 和中文汇总文件", "迟到事件": "补来的通知按实际发生时间入账", "冲突 ID 的所有版本隔离": "同一通知编号内容冲突时，全部版本单独核查", "逐笔手续费及半分进位": "每笔支付分别计算手续费并四舍五入", "第一轮无手续费兼容": "不指定手续费时，仍保留第一轮的计算方式" };
-const state = { dataset: null, modelId: null, roundId: null, messageId: null, showExample: false };
+const state = { dataset: null, modelId: null, runId: null, roundId: null, messageId: null, showExample: false };
 let shareResetTimer;
 
 function element(tag, className, text) {
@@ -27,8 +27,48 @@ function badge(text, kind = "neutral") {
   return element("span", `badge ${kind}`, text);
 }
 
+function modelRuns(modelId = state.modelId) {
+  return state.dataset.runs.filter((run) => run.modelId === modelId && run.enabled === true)
+    .sort((a, b) => (Date.parse(a.startedAt) || 0) - (Date.parse(b.startedAt) || 0));
+}
+
 function currentRun() {
-  return state.dataset.runs.find((run) => run.modelId === state.modelId && run.enabled === true);
+  const runs = modelRuns();
+  return runs.find((run) => run.id === state.runId) ?? runs.at(-1);
+}
+
+function attemptNumber(run) {
+  return modelRuns(run.modelId).findIndex((entry) => entry.id === run.id) + 1;
+}
+
+function runDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? "时间未记录" : new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Shanghai" }).format(date);
+}
+
+function runState(run) {
+  return { completed: "计划执行结束", interrupted: "提前停止", error: "遇到错误", running: "正在执行" }[run?.status] ?? "尚未结束";
+}
+
+function attemptLabel(run) {
+  const runs = modelRuns(run.modelId);
+  const latest = runs.length > 1 && runs.at(-1)?.id === run.id;
+  return `第 ${attemptNumber(run)} 次${latest ? " · 最新" : ""} · ${runDate(run.startedAt)} · ${runState(run)}`;
+}
+
+function mainResponseFailures(round) {
+  return (round?.events ?? []).filter((event) => event.type === "assistant" && event.errorStage === "main-response" && event.isError === true && !event.review).map((event) => {
+    const response = round.rawResponses?.find((entry) => entry.id === (event.sourceMessageId ?? event.id));
+    const title = { length: "主模型生成被截断", aborted: "主模型调用被中止", error: "主模型调用返回错误" }[response?.stopReason] ?? "主模型调用未完成";
+    return { event, response, title, detail: "主模型没有完成这条回复。此次返回没有发送给用户，也没有进入表达审核，不计作审核失败。" };
+  });
+}
+
+function responseCounts(round) {
+  const responses = round?.rawResponses ?? [];
+  const withText = responses.filter((response) => typeof response.text === "string" && response.text.trim().length > 0).length;
+  const toolsOnly = responses.filter((response) => !(typeof response.text === "string" && response.text.trim()) && response.toolCalls?.length > 0).length;
+  return { recorded: Array.isArray(round?.rawResponses), total: responses.length, withText, toolsOnly, other: responses.length - withText - toolsOnly, incomplete: mainResponseFailures(round).length, tools: (round?.events ?? []).filter((event) => event.type === "tool").length };
 }
 
 function currentRound() {
@@ -204,10 +244,15 @@ function restoreQuery() {
   const query = new URLSearchParams(location.search);
   const models = state.dataset.models;
   const rounds = state.dataset.task.rounds;
-  const hasSelection = ["model", "round", "message"].some((key) => query.has(key));
-  const example = hasSelection ? null : state.dataset.runs.filter((run) => run.enabled).flatMap((run) => run.rounds.flatMap((round) => round.events.filter((event) => event.review?.status === "approved" && event.review.original !== event.review.final).map((event) => ({ modelId: run.modelId, roundId: round.id, messageId: event.id })))).at(0);
-  state.modelId = models.some((model) => model.id === query.get("model")) ? query.get("model") : example?.modelId ?? models[0]?.id ?? null;
+  const requestedRun = state.dataset.runs.find((run) => run.enabled && run.id === query.get("runId"));
+  const hasSelection = ["model", "runId", "round", "message"].some((key) => query.has(key));
+  const example = hasSelection ? null : models.map((model) => modelRuns(model.id).at(-1)).filter(Boolean).flatMap((run) => run.rounds.flatMap((round) => round.events.filter((event) => event.review?.status === "approved" && event.review.original !== event.review.final).map((event) => ({ modelId: run.modelId, runId: run.id, roundId: round.id, messageId: event.id })))).at(0);
+  state.modelId = requestedRun?.modelId ?? (models.some((model) => model.id === query.get("model")) ? query.get("model") : example?.modelId ?? models[0]?.id ?? null);
   state.roundId = rounds.some((round) => round.id === query.get("round")) ? query.get("round") : example?.roundId ?? rounds[0]?.id ?? null;
+  const attempts = modelRuns();
+  // Links created before runId existed belong to the earliest matching saved attempt.
+  const legacyRun = !query.has("runId") && query.has("message") ? attempts.find((run) => run.rounds.some((round) => round.id === state.roundId && round.events.some((event) => event.id === query.get("message") && event.review))) : null;
+  state.runId = requestedRun?.id ?? legacyRun?.id ?? example?.runId ?? attempts.at(-1)?.id ?? null;
   const messages = messagesInRound();
   state.messageId = messages.some((event) => event.id === query.get("message")) ? query.get("message") : example?.messageId ?? messages.at(-1)?.id ?? null;
   state.showExample = Boolean(example);
@@ -217,6 +262,7 @@ function updateQuery() {
   const url = new URL(location.href);
   url.search = "";
   if (state.modelId) url.searchParams.set("model", state.modelId);
+  if (state.runId) url.searchParams.set("runId", state.runId);
   if (state.roundId) url.searchParams.set("round", state.roundId);
   if (state.messageId) url.searchParams.set("message", state.messageId);
   history.replaceState(null, "", url);
@@ -243,7 +289,7 @@ function renderBrief() {
     rounds.append(section);
   });
   const complete = state.dataset.complete === true;
-  $("#batch-state").textContent = `${models.length} 个模型 · ${runs.filter((run) => run.enabled).length} 次真实执行 · 每次最多 ${task.rounds.length} 轮需求。${complete ? "这批计划执行已结束，提前中断的情况也全部保留。" : "这批实验尚未全部结束，未完成的运行不会记作成功。"}`;
+  $("#batch-state").textContent = `${models.length} 个模型 · ${runs.filter((run) => run.enabled).length} 次真实尝试 · 每次最多 ${task.rounds.length} 轮需求。${complete ? "这批计划执行已结束，提前中断的情况也全部保留。" : "这批实验尚未全部结束，未完成的运行不会记作成功。"}`;
   $("#batch-state").classList.toggle("in-progress", !complete);
   $("#model-select").replaceChildren();
   for (const model of models) {
@@ -258,6 +304,25 @@ function renderBrief() {
 function renderControls() {
   $("#selection-hint").hidden = !state.showExample;
   $("#model-select").value = state.modelId;
+  const attempts = modelRuns();
+  const run = currentRun();
+  state.runId = run?.id ?? null;
+  const attemptSelect = $("#attempt-select");
+  attemptSelect.replaceChildren();
+  for (const attempt of attempts.toReversed()) {
+    const option = element("option", "", attemptLabel(attempt));
+    option.value = attempt.id;
+    attemptSelect.append(option);
+  }
+  if (!attempts.length) {
+    const option = element("option", "", "尚无执行记录");
+    option.value = "";
+    attemptSelect.append(option);
+  }
+  attemptSelect.value = state.runId ?? "";
+  attemptSelect.disabled = attempts.length < 2;
+  const latest = attempts.at(-1)?.id === state.runId;
+  $("#attempt-note").textContent = attempts.length > 1 ? `此模型保留 ${attempts.length} 次尝试，当前查看第 ${attemptNumber(run)} 次${latest ? "（最新）" : ""}。之前的失败和中断记录均保留，可切换查看。` : attempts.length ? "当前模型仅记录了一次尝试。" : "当前模型尚无执行记录。";
   const target = $("#round-select");
   target.replaceChildren();
   state.dataset.task.rounds.forEach((round, index) => {
@@ -292,6 +357,104 @@ function renderControls() {
   select.value = state.messageId ?? "";
   select.disabled = messages.length === 0;
   $("#message-caption").textContent = messages.length ? `本轮 ${messages.length} 条消息都有各自的原稿与审阅记录。` : "尚无文字原稿，不会把调用失败当成改写结果。";
+}
+
+const LIMIT_NAMES = { maxRevisions: "最多改写次数", reviewTimeoutMs: "单条消息审阅时限", requestTimeoutMs: "单次请求超时参数", roundTimeoutMs: "每轮执行时限", maxAgentCallsPerRound: "每轮主模型调用上限" };
+
+function limitValue(key, value) {
+  if (value === undefined) return "未记录";
+  return key.endsWith("Ms") && Number.isFinite(value) ? duration(value) : formatJSON(value);
+}
+
+function reasoningLabel(reasoning) {
+  if (reasoning === undefined) return "未记录";
+  if (reasoning?.mode === "upstream-unspecified" && reasoning.effort === null) return "未指定上游推理强度";
+  const labels = { low: "low（较低）", medium: "medium（中等）", high: "high（较高）" };
+  return reasoning?.mode === "explicit" && Object.hasOwn(labels, reasoning.effort) ? labels[reasoning.effort] : "无法识别该记录";
+}
+
+function runDifferences(previous, current) {
+  if (!previous || !current) return [];
+  const differences = [];
+  const previousReasoning = reasoningLabel(previous.reasoning);
+  const currentReasoning = reasoningLabel(current.reasoning);
+  if (previousReasoning !== currentReasoning) differences.push(`上游推理强度：前次 ${previousReasoning} → 本次 ${currentReasoning}`);
+  const keys = new Set([...Object.keys(previous.limits ?? {}), ...Object.keys(current.limits ?? {})]);
+  for (const key of keys) {
+    const before = previous.limits?.[key];
+    const after = current.limits?.[key];
+    if (JSON.stringify(before) !== JSON.stringify(after)) differences.push(`${LIMIT_NAMES[key] ?? key}：前次 ${limitValue(key, before)} → 本次 ${limitValue(key, after)}`);
+  }
+  for (const [label, before, after] of [["模型接口", previous.api, current.api], ["审阅提示词版本", previous.reviewPromptVersion, current.reviewPromptVersion], ["初始项目版本", previous.seedHash, current.seedHash], ["Humanize 实现", previous.source?.humanizeSha256, current.source?.humanizeSha256], ["执行脚本版本", previous.source?.runnerSha256, current.source?.runnerSha256], ["模型请求配置版本", previous.source?.modelOptionsSha256, current.source?.modelOptionsSha256], ["任务版本", previous.source?.taskSha256, current.source?.taskSha256], ["主模型系统提示词", previous.systemPrompt, current.systemPrompt]]) {
+    if (before !== after) differences.push(`${label}：${before === undefined || after === undefined ? "两次记录的信息不完整，不能确认相同" : "与前次不同"}`);
+  }
+  return differences;
+}
+
+function renderRunSettings() {
+  const target = $("#run-settings");
+  target.replaceChildren();
+  const run = currentRun();
+  if (!run) return;
+  const attempts = modelRuns();
+  const index = attempts.findIndex((entry) => entry.id === run.id);
+  const differences = runDifferences(attempts[index - 1], run);
+  const detail = element("details", "run-settings");
+  detail.append(element("summary", "", `这次尝试的限制与条件${differences.length ? ` · 与前次有 ${differences.length} 项差异` : ""}`));
+  const content = element("div", "run-settings-body");
+  content.append(element("p", "", `开始时间：${runDate(run.startedAt)}（北京时间）。每次尝试单独保留参数、工具记录和回复。`));
+  const values = element("dl", "limit-list");
+  for (const [key, value] of Object.entries(run.limits ?? {})) values.append(element("dt", "", LIMIT_NAMES[key] ?? key), element("dd", "", limitValue(key, value)));
+  values.append(element("dt", "", "上游推理强度"), element("dd", "", reasoningLabel(run.reasoning)));
+  content.append(values);
+  if (Object.keys(run.limits ?? {}).length) content.append(element("p", "", "请求超时由接口实现，实际耗时可能超过配置；单条审核限额覆盖全部审核阶段。"));
+  else content.append(element("p", "empty-note", "此记录没有单独保存运行限制。"));
+  if (index > 0) {
+    content.append(element("p", "conditions-label", `与第 ${index} 次尝试相比`));
+    if (differences.length) {
+      const list = element("ul", "condition-differences");
+      for (const difference of differences) list.append(element("li", "", difference));
+      content.append(list);
+    } else content.append(element("p", "", "已记录的限制和版本信息没有变化。"));
+  }
+  content.append(rawDetail("本次完整运行参数与版本", { runId: run.id, startedAt: run.startedAt, api: run.api, limits: run.limits, reasoning: run.reasoning, reviewPromptVersion: run.reviewPromptVersion, seedHash: run.seedHash, source: run.source, systemPrompt: run.systemPrompt }));
+  detail.append(content);
+  target.append(detail);
+}
+
+function moveToRecord(target) {
+  if (!target) return;
+  if (target.tagName === "DETAILS") target.open = true;
+  target.focus({ preventScroll: true });
+  target.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
+}
+
+function renderResponseSummary() {
+  const round = currentRound();
+  const target = $("#response-summary");
+  target.replaceChildren();
+  if (!round) {
+    target.append(element("p", "", "这轮尚未执行，没有模型响应或工具记录。"));
+    return;
+  }
+  const counts = responseCounts(round);
+  const summary = counts.recorded ? `本轮共 ${counts.total} 次主模型${counts.other ? "调用记录" : "响应"}：${counts.withText} 条含文字，${counts.toolsOnly} 次仅工具调用。${counts.other ? `另有 ${counts.other} 次没有形成文字或工具返回。` : ""}` : `本轮已记录 ${messagesInRound(round).length} 条文字草稿；原始模型响应次数未记录。`;
+  target.append(element("p", "response-counts", summary), element("p", "", `完整生成的文字消息才进入回复审核。本轮实际执行 ${counts.tools} 次工具操作；一次模型响应可以发出多个工具调用。`));
+  if (counts.incomplete) target.append(element("p", "main-incomplete-count", `其中 ${counts.incomplete} 次主模型调用未完成，未进入审核，也未发送给用户。含文字的统计可能包含截断片段。`));
+  const links = element("div", "record-links");
+  if (counts.total) {
+    const raw = element("a", "", `查看全部 ${counts.total} 次模型返回`);
+    raw.href = "#main-responses";
+    raw.addEventListener("click", (event) => { event.preventDefault(); moveToRecord($("#main-responses")); });
+    links.append(raw);
+  }
+  if (round.events?.length) {
+    const trace = element("a", "", `查看完整工具与消息轨迹`);
+    trace.href = "#trace-content";
+    trace.addEventListener("click", (event) => { event.preventDefault(); moveToRecord($("#trace-content")); });
+    links.append(trace);
+  }
+  target.append(links);
 }
 
 function renderAcceptance(round) {
@@ -383,17 +546,21 @@ function renderWorkOutcome() {
   const overview = element("div", "work-outcome");
   const heading = element("div", "work-outcome-heading");
   const status = acceptanceStatus(round);
-  heading.append(element("h3", "", "这轮任务实际完成了吗"), badge(status.text, status.kind));
-  overview.append(heading, element("p", "outcome-context", "这里根据程序的实际结果验收，与上方回复的表达检查分开计算。"));
+  heading.append(element("h3", "", "这轮程序通过了哪些检查"), badge(status.text, status.kind));
+  overview.append(heading, element("p", "outcome-context", "只覆盖预设的自动检查，不代表所有交付要求或回复质量都已合格。"));
   if (round?.acceptance?.total) overview.append(renderAcceptance(round));
   else overview.append(element("p", "outcome-context", round?.status === "running" ? "这轮仍在执行。结束后将展示最终业务验收结果。" : "这轮没有产生最终业务验收结果。"));
+  const incomplete = mainResponseFailures(round);
+  if (incomplete.length) overview.append(element("p", "outcome-context main-incomplete-count", `本轮主模型有 ${incomplete.length} 次未完成调用；这些返回没有进入表达审核，也没有发送给用户。`));
   const error = round?.error ?? (!round ? run?.error : null);
-  if (error || (round && ["interrupted", "error"].includes(round.status))) {
+  if (error || incomplete.length || (round && ["interrupted", "error"].includes(round.status))) {
     const warning = element("div", "stop-note");
-    const failedReview = [...(round?.events ?? [])].reverse().find((event) => event.review?.status === "failed")?.review;
+    const stoppedMessage = [...(round?.events ?? [])].reverse().find((event) => event.type === "assistant" && event.isError);
+    const mainFailure = incomplete.find((entry) => entry.event.id === stoppedMessage?.id);
+    const failedReview = stoppedMessage?.review?.status === "failed" ? stoppedMessage.review : null;
     const diagnostic = failedReview?.diagnostic?.source === "offline-replay" ? failedReview.diagnostic : null;
     const interruption = reviewInterruption(failedReview);
-    warning.append(element("strong", "", diagnostic?.title ?? interruption?.title ?? "这轮没有走到正常结束"), element("p", "", diagnostic?.detail ?? interruption?.detail ?? errorExplanation(error)));
+    warning.append(element("strong", "", mainFailure?.title ?? diagnostic?.title ?? interruption?.title ?? "这轮没有走到正常结束"), element("p", "", mainFailure?.detail ?? diagnostic?.detail ?? interruption?.detail ?? errorExplanation(error)));
     if (diagnostic) warning.append(element("p", "", "以上为已保存响应的本地重放诊断；原始运行错误仍保留在下方。"));
     if (interruption?.error) warning.append(rawDetail("调用返回的原始错误", interruption.error));
     if (error) warning.append(rawDetail("查看具体错误", error));
@@ -554,15 +721,18 @@ function renderTrace() {
     return;
   }
   const list = element("ol", "event-list");
+  const incomplete = mainResponseFailures(round);
   round.events.forEach((event, index) => {
     const item = element("li", `event ${event.type}`);
     const number = element("span", "event-number", String(index + 1).padStart(2, "0"));
     number.setAttribute("aria-hidden", "true");
     item.append(number);
     if (event.type === "assistant") {
-      const message = element("article", "event-message");
+      const failure = incomplete.find((entry) => entry.event.id === event.id);
+      const message = element("article", `event-message${failure ? " event-incomplete" : ""}`);
       const heading = element("div", "event-message-heading");
-      heading.append(element("h3", "", eventTitle(event)));
+      heading.append(element("h3", "", failure?.title ?? eventTitle(event)));
+      if (failure) heading.append(badge("未发送 · 未进入审核"));
       if (event.review) heading.append(badge(event.review.status === "approved" ? event.review.original === event.review.final ? "原样展示" : "改写后展示" : "没有展示", event.review.status === "approved" ? "review" : "fail"));
       message.append(heading);
       if (event.review) {
@@ -577,7 +747,14 @@ function renderTrace() {
         });
         heading.append(jump);
       }
-      if (event.text?.trim() && event.text.length > 700) {
+      if (failure) {
+        message.append(element("p", "incomplete-response-note", failure.detail));
+        const original = failure.response?.text;
+        if (original?.trim()) message.append(rawDetail(`未发送的${failure.response.stopReason === "length" ? "截断原文" : "不完整返回"} · ${original.length.toLocaleString("zh-CN")} 字符`, original, original.length <= 700));
+        else message.append(element("p", "empty-note", "没有保存可显示的主模型原文。"));
+        if (failure.response) message.append(rawDetail("这次主模型调用的原始记录", failure.response));
+        if (event.result !== undefined) message.append(rawDetail("执行器保存的原始错误", event.result));
+      } else if (event.text?.trim() && event.text.length > 700) {
         const fullReply = element("details", "trace-reply");
         fullReply.append(element("summary", "", `查看实际发送的完整回复（${event.text.length.toLocaleString("zh-CN")} 字符）`), renderMessage(event.text));
         message.append(fullReply);
@@ -608,7 +785,12 @@ function renderTrace() {
     list.append(item);
   });
   target.append(list);
-  if (round.rawResponses?.length) target.append(rawDetail(`主模型原始返回 · ${round.rawResponses.length} 次调用`, round.rawResponses));
+  if (round.rawResponses?.length) {
+    const responses = rawDetail(`主模型全部原始返回 · ${round.rawResponses.length} 次（包含纯工具调用）`, round.rawResponses);
+    responses.id = "main-responses";
+    responses.tabIndex = -1;
+    target.append(responses);
+  }
 }
 
 function renderFiles() {
@@ -640,12 +822,12 @@ function renderFiles() {
 function renderAllRuns() {
   const { models, runs, task } = state.dataset;
   const enabledRuns = runs.filter((run) => run.enabled);
-  $("#run-count").textContent = `${enabledRuns.length} 次执行 · ${enabledRuns.reduce((total, run) => total + run.rounds.length, 0)} 轮实际记录`;
+  $("#run-count").textContent = `${models.length} 个模型 · ${enabledRuns.length} 次尝试 · ${enabledRuns.reduce((total, run) => total + run.rounds.length, 0)} 轮实际记录`;
   const table = element("table", "runs-table");
-  const caption = element("caption", "sr-only", "按模型分列的业务验收结果与表达检查结果，每条回复均保留对应原稿");
+  const caption = element("caption", "sr-only", "每个模型的每次尝试单独列出，旧失败记录不会被后续尝试替代");
   const head = element("thead");
   const row = element("tr");
-  for (const title of ["执行模型", ...task.rounds.map((_, index) => `第 ${index + 1} 轮业务验收`), "表达检查", "执行状态"]) {
+  for (const title of ["执行模型", "执行尝试", ...task.rounds.map((_, index) => `第 ${index + 1} 轮业务验收`), "表达检查", "主模型未完成", "执行状态"]) {
     const th = element("th", "", title);
     th.scope = "col";
     row.append(th);
@@ -653,27 +835,32 @@ function renderAllRuns() {
   head.append(row);
   const body = element("tbody");
   for (const model of models) {
-      const run = enabledRuns.find((entry) => entry.modelId === model.id);
+    const attempts = modelRuns(model.id);
+    for (const run of attempts.length ? attempts.toReversed() : [null]) {
       const item = element("tr");
-      const name = element("th", "model-cell");
+      const name = element("th", "model-cell", model.name ?? model.id);
       name.scope = "row";
-      name.append(element("span", "", model.name ?? model.id));
       item.append(name);
+      const attempt = element("td", "attempt-cell");
+      if (run) attempt.append(element("strong", "", `第 ${attemptNumber(run)} 次${attempts.length > 1 && attempts.at(-1)?.id === run.id ? " · 最新" : ""}`), element("span", "", runDate(run.startedAt)));
+      else attempt.textContent = "尚无执行记录";
+      item.append(attempt);
       for (const taskRound of task.rounds) {
         const round = run?.rounds.find((entry) => entry.id === taskRound.id);
         const result = acceptanceStatus(round);
         const cell = element("td");
         const button = element("button", `table-result ${result.kind}`, round?.acceptance?.total ? `${round.acceptance.passedCount}/${round.acceptance.total} · ${result.text}` : "未执行验收");
         button.type = "button";
-        button.setAttribute("aria-label", `${model.name ?? model.id}，${taskRound.title}，${result.text}，打开记录`);
+        button.disabled = !run;
+        button.setAttribute("aria-label", `${model.name ?? model.id}，${run ? `第 ${attemptNumber(run)} 次尝试，` : ""}${taskRound.title}，${result.text}，打开记录`);
         button.addEventListener("click", () => {
           state.modelId = model.id;
+          state.runId = run.id;
           state.roundId = taskRound.id;
           state.messageId = null;
           state.showExample = false;
           renderView();
-          $("#comparison").focus({ preventScroll: true });
-          $("#comparison").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
+          moveToRecord($("#comparison"));
         });
         cell.append(button);
         item.append(cell);
@@ -683,8 +870,11 @@ function renderAllRuns() {
       const approved = reviews.filter((review) => review.status === "approved").length;
       const expression = reviews.length ? `${approved} 条放行${blocked ? ` / ${blocked} 条拦截` : ""}` : "尚无文字审阅";
       item.append(element("td", blocked ? "table-blocked" : "", expression));
-      item.append(element("td", "table-state", run ? { completed: "计划执行结束", interrupted: "提前停止", error: "遇到错误" }[run.status] ?? "尚未结束" : "没有记录"));
+      const incomplete = (run?.rounds ?? []).reduce((total, round) => total + responseCounts(round).incomplete, 0);
+      item.append(element("td", incomplete ? "table-main-incomplete" : "table-state", run ? incomplete ? `${incomplete} 次 · 未进入审核` : "0 次" : "未记录"));
+      item.append(element("td", "table-state", run ? runState(run) : "没有记录"));
       body.append(item);
+    }
   }
   table.append(caption, head, body);
   $("#run-table").replaceChildren(table);
@@ -700,6 +890,8 @@ function renderMethodology() {
 
 function renderView() {
   renderControls();
+  renderRunSettings();
+  renderResponseSummary();
   renderReaderContext();
   $("#delivery-grid").replaceChildren(renderDelivery(false), renderDelivery(true));
   $("#selected-review").replaceChildren();
@@ -713,10 +905,18 @@ function renderView() {
 
 $("#model-select").addEventListener("change", (event) => {
   state.modelId = event.target.value;
+  state.runId = modelRuns().at(-1)?.id ?? null;
   state.messageId = null;
   state.showExample = false;
   renderView();
   $("#announcement").textContent = `已切换到 ${state.modelId} 的完整执行记录。`;
+});
+$("#attempt-select").addEventListener("change", (event) => {
+  state.runId = event.target.value;
+  state.messageId = null;
+  state.showExample = false;
+  renderView();
+  $("#announcement").textContent = `已切换到 ${state.modelId} 的第 ${attemptNumber(currentRun())} 次尝试。`;
 });
 $("#message-select").addEventListener("change", (event) => {
   state.messageId = event.target.value;
@@ -733,7 +933,7 @@ $("#share-view").addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(url.href);
     $("#share-view").textContent = "链接已复制";
-    $("#announcement").textContent = "当前模型、轮次和这条消息的链接已复制。";
+    $("#announcement").textContent = "当前模型、执行尝试、轮次和这条消息的链接已复制。";
   } catch {
     $("#share-view").textContent = "请复制地址栏链接";
     $("#announcement").textContent = "浏览器未允许复制。地址栏已经是当前视图的链接，可手动复制。";
