@@ -13,6 +13,7 @@ import { DefaultResourceLoader } from "../packages/coding-agent/src/core/resourc
 import { createAgentSession, type ToolDefinition } from "../packages/coding-agent/src/core/sdk.ts";
 import { SessionManager } from "../packages/coding-agent/src/core/session-manager.ts";
 import { SettingsManager } from "../packages/coding-agent/src/core/settings-manager.ts";
+import { readFullTaskLimits } from "./humanize-full-task-limits.ts";
 
 // One process runs one independently seeded, two-round SDK session. Every paired
 // original/approved message comes from one request in this enabled session.
@@ -27,6 +28,7 @@ const outputPath = resolve(process.env.HUMANIZE_TASK_OUTPUT ?? resolve(repo, ".a
 const baseUrl = process.env.HUMANIZE_TASK_BASE_URL ?? "http://127.0.0.1:4142/v1";
 const api = process.env.HUMANIZE_TASK_API === "openai-responses" ? "openai-responses" : "openai-completions";
 assert(process.env.PI_HUMANIZE === undefined, "Unset PI_HUMANIZE: this experiment controls the setting explicitly.");
+const limits = readFullTaskLimits(process.env);
 
 interface Acceptance {
 	passed: boolean;
@@ -125,14 +127,11 @@ const run = {
 			.update(await readFile(fileURLToPath(import.meta.url)))
 			.digest("hex"),
 		taskSha256: createHash("sha256").update(taskSource).digest("hex"),
+		limitsConfigSha256: createHash("sha256")
+			.update(await readFile(new URL("./humanize-full-task-limits.ts", import.meta.url)))
+			.digest("hex"),
 	},
-	limits: {
-		maxRevisions: 2,
-		reviewTimeoutMs: 120_000,
-		requestTimeoutMs: 90_000,
-		roundTimeoutMs: 720_000,
-		maxAgentCallsPerRound: 45,
-	},
+	limits,
 	rounds: [] as Round[],
 };
 let pendingWrite = Promise.resolve();
@@ -484,9 +483,14 @@ runtime.streamSimple = (selected, context, options) => {
 	return stream;
 };
 const settings = SettingsManager.inMemory({
-	humanize: { enabled, maxRevisions: 2, timeoutMs: 120_000, maxContextChars: 48_000 },
+	humanize: {
+		enabled,
+		maxRevisions: run.limits.maxRevisions,
+		timeoutMs: run.limits.reviewTimeoutMs,
+		maxContextChars: 48_000,
+	},
 	cacheWarming: "off",
-	retry: { enabled: false, provider: { maxRetries: 0, timeoutMs: 90_000 } },
+	retry: { enabled: false, provider: { maxRetries: 0, timeoutMs: run.limits.requestTimeoutMs } },
 	compaction: { enabled: false },
 	enableAnalytics: false,
 	enableInstallTelemetry: false,
@@ -602,24 +606,31 @@ try {
 			expired = true;
 			abortSession();
 		}, run.limits.roundTimeoutMs);
+		const limitError = () =>
+			expired
+				? `达到本轮时限（${run.limits.roundTimeoutMs / 1_000} 秒）`
+				: agentCalls > run.limits.maxAgentCallsPerRound
+					? `超过本轮 ${run.limits.maxAgentCallsPerRound} 次主模型调用上限`
+					: undefined;
 		try {
 			await session.prompt(requirement.prompt);
 			const final = session.messages.findLast((message) => message.role === "assistant");
-			activeRound.status =
-				expired || agentCalls > run.limits.maxAgentCallsPerRound
-					? "interrupted"
-					: final?.role === "assistant" && final.stopReason === "stop"
-						? "completed"
-						: "error";
+			const interruption = limitError();
+			activeRound.status = interruption
+				? "interrupted"
+				: final?.role === "assistant" && final.stopReason === "stop"
+					? "completed"
+					: "error";
 			if (activeRound.status !== "completed")
-				activeRound.error = expired
-					? "达到本轮 12 分钟时限"
-					: final?.role === "assistant"
+				activeRound.error =
+					interruption ??
+					(final?.role === "assistant"
 						? (final.errorMessage ?? `输出结束原因：${final.stopReason}`)
-						: "没有完成的模型回复";
+						: "没有完成的模型回复");
 		} catch (error) {
-			activeRound.status = "error";
-			activeRound.error = error instanceof Error ? error.message : String(error);
+			const interruption = limitError();
+			activeRound.status = interruption ? "interrupted" : "error";
+			activeRound.error = interruption ?? (error instanceof Error ? error.message : String(error));
 		} finally {
 			clearTimeout(timer);
 		}
